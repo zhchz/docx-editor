@@ -900,6 +900,32 @@ function convertTableRow(
   return schema.node('tableRow', attrs, cells);
 }
 
+const CELL_BORDER_SIDES = ['top', 'bottom', 'left', 'right', 'insideH', 'insideV'] as const;
+
+/**
+ * Bake themed border colors to RGB up front: the cell schema's `toDOM` has no
+ * theme access, so a `themeColor` border would otherwise hit the default Office
+ * palette there. Mirrors how cell shading resolves into `backgroundColor`.
+ * `auto`, plain-RGB, and unresolvable-themed colors pass through unchanged
+ * (`resolveColor` defaults the last case downstream).
+ */
+function resolveBorderColors(
+  borders: TableBorders | undefined,
+  theme: Theme | null | undefined
+): TableBorders | undefined {
+  if (!borders) return borders;
+  let resolved: TableBorders | undefined;
+  for (const side of CELL_BORDER_SIDES) {
+    const border = borders[side];
+    if (!border?.color?.themeColor || border.color.auto) continue;
+    const hex = resolveColorToHex(border.color, theme);
+    if (!hex) continue;
+    resolved ??= { ...borders };
+    resolved[side] = { ...border, color: { rgb: hex } };
+  }
+  return resolved ?? borders;
+}
+
 /**
  * Convert a TableCell to a ProseMirror table cell node
  */
@@ -954,14 +980,16 @@ function convertTableCell(
   const conditionalBorders = conditionalStyle?.tcPr?.borders;
   const cellBorders = formatting?.borders;
 
-  const borders =
+  const borders = resolveBorderColors(
     baseBorders || conditionalBorders || cellBorders
       ? {
           ...(baseBorders ?? {}),
           ...(conditionalBorders ?? {}),
           ...(cellBorders ?? {}),
         }
-      : undefined;
+      : undefined,
+    theme
+  );
 
   const attrs: TableCellAttrs = {
     colspan: formatting?.gridSpan ?? 1,

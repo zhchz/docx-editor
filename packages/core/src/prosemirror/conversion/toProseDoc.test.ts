@@ -33,16 +33,11 @@ const OFFICE_THEME: Theme = {
   },
 };
 
-function makeCell(shading?: TableCell['formatting'] extends infer F ? F : never): TableCell {
+function makeCell(formatting?: TableCell['formatting']): TableCell {
   return {
     type: 'tableCell',
-    formatting: shading as TableCell['formatting'],
-    content: [
-      {
-        type: 'paragraph',
-        content: [],
-      },
-    ],
+    formatting,
+    content: [{ type: 'paragraph', content: [] }],
   };
 }
 
@@ -69,6 +64,18 @@ function collectCellAttrs(pmDoc: ReturnType<typeof toProseDoc>): Array<Record<st
     }
   });
   return cells;
+}
+
+// Border color for one physical side of a converted cell (the `borders` attr is loosely typed).
+function borderColor(
+  attrs: Record<string, unknown>,
+  side: 'top' | 'bottom' | 'left' | 'right'
+): { rgb?: string; themeColor?: string } | undefined {
+  const borders = attrs.borders as
+    | Record<string, { color?: { rgb?: string; themeColor?: string } }>
+    | null
+    | undefined;
+  return borders?.[side]?.color;
 }
 
 describe('toProseDoc — table cell theme color resolution', () => {
@@ -140,6 +147,50 @@ describe('toProseDoc — table cell theme color resolution', () => {
     expect(cells[0].backgroundColor).toBe('8FAADC');
     // tint=33 (0.2) → near-white
     expect(cells[1].backgroundColor).toBe('DAE3F3');
+  });
+
+  test('cell with themed border color resolves against the document theme', () => {
+    // toDOM has no theme access, so a themed border color must be baked to RGB
+    // at conversion time (mirrors the backgroundColor handling).
+    const cell = makeCell({
+      borders: { top: { style: 'single', size: 8, color: { themeColor: 'accent2' } } },
+    });
+    const doc = makeDocument(makeTable([cell]), OFFICE_THEME);
+    const cells = collectCellAttrs(toProseDoc(doc));
+    expect(borderColor(cells[0], 'top')?.rgb).toBe('ED7D31'); // accent2
+  });
+
+  test('themed border + tint resolves to the modified RGB', () => {
+    const cell = makeCell({
+      borders: {
+        left: { style: 'single', size: 4, color: { themeColor: 'accent1', themeTint: '33' } },
+      },
+    });
+    const doc = makeDocument(makeTable([cell]), OFFICE_THEME);
+    const cells = collectCellAttrs(toProseDoc(doc));
+    expect(borderColor(cells[0], 'left')?.rgb).toBe('DAE3F3');
+  });
+
+  test('themed border with no document theme is left for resolveColor to default', () => {
+    const cell = makeCell({
+      borders: { top: { style: 'single', size: 8, color: { themeColor: 'accent2' } } },
+    });
+    const doc = makeDocument(makeTable([cell]), undefined);
+    const cells = collectCellAttrs(toProseDoc(doc));
+    expect(borderColor(cells[0], 'top')?.themeColor).toBe('accent2');
+  });
+
+  test('plain RGB and auto border colors pass through unchanged', () => {
+    const cell = makeCell({
+      borders: {
+        top: { style: 'single', size: 8, color: { rgb: 'FF0000' } },
+        bottom: { style: 'single', size: 8, color: { rgb: 'auto' } },
+      },
+    });
+    const doc = makeDocument(makeTable([cell]), OFFICE_THEME);
+    const cells = collectCellAttrs(toProseDoc(doc));
+    expect(borderColor(cells[0], 'top')?.rgb).toBe('FF0000');
+    expect(borderColor(cells[0], 'bottom')?.rgb).toBe('auto');
   });
 });
 

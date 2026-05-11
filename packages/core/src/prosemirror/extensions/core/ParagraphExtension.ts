@@ -50,6 +50,8 @@ function paragraphAttrsToDOMStyle(attrs: ParagraphAttrs): string {
   };
 
   const style = paragraphToStyle(formatting);
+  // Only the inline HF editor (`.hf-editor-pm`) reads these — it re-applies them
+  // as padding so table-cell paragraphs match the paged render. Inert elsewhere.
   if (style.marginTop) {
     style['--docx-space-before'] = style.marginTop;
   }
