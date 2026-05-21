@@ -9,6 +9,13 @@
 
 import type { ThemeFontScheme, ThemeFont } from '../types';
 
+export interface FontFamilySlots {
+  ascii?: string | null;
+  hAnsi?: string | null;
+  eastAsia?: string | null;
+  cs?: string | null;
+}
+
 /**
  * Result of resolving a font family
  */
@@ -86,13 +93,31 @@ const FONT_MAPPINGS: Record<string, FontMapping> = {
   arial: {
     googleFont: 'Arimo',
     category: 'sans-serif',
-    fallbackStack: ['Arial', 'Arimo', 'Helvetica', 'sans-serif'],
+    fallbackStack: [
+      'Arial',
+      'Arimo',
+      'Helvetica',
+      'SimSun',
+      'Songti SC',
+      'STSong',
+      'Noto Serif SC',
+      'sans-serif',
+    ],
     singleLineRatio: 1.1172, // (1854+434)/2048 — no sTypoLineGap
   },
   'times new roman': {
     googleFont: 'Tinos',
     category: 'serif',
-    fallbackStack: ['Times New Roman', 'Tinos', 'Times', 'serif'],
+    fallbackStack: [
+      'Times New Roman',
+      'Tinos',
+      'Times',
+      'SimSun',
+      'Songti SC',
+      'STSong',
+      'Noto Serif SC',
+      'serif',
+    ],
     singleLineRatio: 1.1074, // (1825+443)/2048 — no sTypoLineGap
   },
   'courier new': {
@@ -106,19 +131,19 @@ const FONT_MAPPINGS: Record<string, FontMapping> = {
   georgia: {
     googleFont: 'Tinos', // Similar but not perfect match
     category: 'serif',
-    fallbackStack: ['Georgia', 'Tinos', 'Times New Roman', 'serif'],
+    fallbackStack: ['Georgia', 'Tinos', 'Times New Roman', 'SimSun', 'Songti SC', 'serif'],
     singleLineRatio: 1.1362, // 2327/2048
   },
   verdana: {
     googleFont: 'Open Sans', // Similar sans-serif
     category: 'sans-serif',
-    fallbackStack: ['Verdana', 'Open Sans', 'Arial', 'sans-serif'],
+    fallbackStack: ['Verdana', 'Open Sans', 'Arial', 'SimSun', 'Songti SC', 'sans-serif'],
     singleLineRatio: 1.2153, // 2489/2048
   },
   tahoma: {
     googleFont: 'Open Sans',
     category: 'sans-serif',
-    fallbackStack: ['Tahoma', 'Open Sans', 'Arial', 'sans-serif'],
+    fallbackStack: ['Tahoma', 'Open Sans', 'Arial', 'SimSun', 'Songti SC', 'sans-serif'],
     singleLineRatio: 1.2075, // 2472/2048
   },
   'trebuchet ms': {
@@ -204,7 +229,7 @@ const FONT_MAPPINGS: Record<string, FontMapping> = {
   simsun: {
     googleFont: 'Noto Serif SC',
     category: 'serif',
-    fallbackStack: ['SimSun', 'Noto Serif SC', 'serif'],
+    fallbackStack: ['SimSun', 'Songti SC', 'STSong', 'Noto Serif SC', 'serif'],
     singleLineRatio: DEFAULT_SINGLE_LINE_RATIO,
   },
   'malgun gothic': {
@@ -219,13 +244,18 @@ const FONT_MAPPINGS: Record<string, FontMapping> = {
  * Default fallback stacks by category
  */
 const DEFAULT_FALLBACKS: Record<FontCategory, string> = {
-  'sans-serif': 'Arial, Helvetica, sans-serif',
-  serif: 'Times New Roman, Times, serif',
+  'sans-serif': 'Arial, Helvetica, "SimSun", "Songti SC", "Noto Serif SC", sans-serif',
+  serif: '"Times New Roman", "Tinos", "Times", "SimSun", "Songti SC", "STSong", "Noto Serif SC", serif',
   monospace: 'Courier New, Courier, monospace',
   cursive: 'cursive',
   fantasy: 'fantasy',
   'system-ui': 'system-ui, sans-serif',
 };
+
+const EAST_ASIA_TEXT_RE =
+  /[\u2e80-\u2eff\u2f00-\u2fdf\u3040-\u30ff\u3100-\u312f\u31a0-\u31bf\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af\uff66-\uffef]/;
+const COMPLEX_SCRIPT_TEXT_RE =
+  /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/;
 
 /**
  * Detect font category from font name
@@ -331,6 +361,60 @@ function quoteFontName(fontName: string): string {
   }
 
   return fontName;
+}
+
+function uniqueFontNames(fonts: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const font of fonts) {
+    const trimmed = font?.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
+export function orderedFontFamilyCandidates(fontFamily?: FontFamilySlots | null, text?: string): string[] {
+  if (!fontFamily) {
+    return [];
+  }
+
+  if (text && EAST_ASIA_TEXT_RE.test(text)) {
+    return uniqueFontNames([
+      fontFamily.eastAsia,
+      fontFamily.cs,
+      fontFamily.ascii,
+      fontFamily.hAnsi,
+    ]);
+  }
+
+  if (text && COMPLEX_SCRIPT_TEXT_RE.test(text)) {
+    return uniqueFontNames([
+      fontFamily.cs,
+      fontFamily.eastAsia,
+      fontFamily.ascii,
+      fontFamily.hAnsi,
+    ]);
+  }
+
+  return uniqueFontNames([
+    fontFamily.ascii,
+    fontFamily.hAnsi,
+    fontFamily.eastAsia,
+    fontFamily.cs,
+  ]);
+}
+
+export function pickFontFamilyForText(
+  fontFamily?: FontFamilySlots | null,
+  text?: string
+): string | null {
+  return orderedFontFamilyCandidates(fontFamily, text)[0] ?? null;
 }
 
 /**

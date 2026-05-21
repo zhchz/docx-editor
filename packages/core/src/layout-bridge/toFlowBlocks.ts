@@ -41,7 +41,7 @@ export { resetBlockIdCounter } from './toFlowBlocks/shared';
 export { convertBorderSpecToLayout } from './toFlowBlocks/borders';
 export { resolveListTemplate } from './toFlowBlocks/listMarkers';
 
-const DEFAULT_FONT = 'Calibri';
+const DEFAULT_FONT = 'Times New Roman';
 const DEFAULT_SIZE = 11; // points (Word 2007+ default)
 
 /**
@@ -247,7 +247,7 @@ function convertParagraphAttrs(
 
   // Default font for empty paragraph measurement (from style's rPr / pPr/rPr)
   const dtf = pmAttrs.defaultTextFormatting as
-    | { fontSize?: number; fontFamily?: { ascii?: string; hAnsi?: string } }
+    | { fontSize?: number; fontFamily?: { ascii?: string; hAnsi?: string; eastAsia?: string; cs?: string } }
     | undefined;
   if (dtf) {
     if (dtf.fontSize != null) {
@@ -255,7 +255,12 @@ function convertParagraphAttrs(
       attrs.defaultFontSize = dtf.fontSize / 2;
     }
     if (dtf.fontFamily) {
-      attrs.defaultFontFamily = (dtf.fontFamily.ascii || dtf.fontFamily.hAnsi) as
+      attrs.defaultFontFamily = (
+        dtf.fontFamily.ascii ||
+        dtf.fontFamily.hAnsi ||
+        dtf.fontFamily.eastAsia ||
+        dtf.fontFamily.cs
+      ) as
         | string
         | undefined;
     }

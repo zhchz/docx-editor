@@ -6,6 +6,7 @@ import { createMarkExtension } from '../create';
 import { setMark, removeMark } from './markUtils';
 import type { FontFamilyAttrs } from '../../schema/marks';
 import type { ExtensionContext, ExtensionRuntime } from '../types';
+import { orderedFontFamilyCandidates } from '../../../utils/fontResolver';
 
 export const FontFamilyExtension = createMarkExtension({
   name: 'fontFamily',
@@ -36,12 +37,14 @@ export const FontFamilyExtension = createMarkExtension({
     ],
     toDOM(mark) {
       const attrs = mark.attrs as FontFamilyAttrs;
-      const fontName = attrs.ascii || attrs.hAnsi;
-      if (!fontName) {
+      const candidates = orderedFontFamilyCandidates(attrs);
+      if (!candidates.length) {
         return ['span', 0];
       }
-      const quotedFont = fontName.includes(' ') ? `"${fontName}"` : fontName;
-      return ['span', { style: `font-family: ${quotedFont}, sans-serif` }, 0];
+      const cssValue = `${candidates
+        .map((fontName) => (fontName.includes(' ') ? `"${fontName}"` : fontName))
+        .join(', ')}, sans-serif`;
+      return ['span', { style: `font-family: ${cssValue}` }, 0];
     },
   },
   onSchemaReady(ctx: ExtensionContext): ExtensionRuntime {

@@ -24,6 +24,7 @@ import type {
 } from '../../prosemirror/schema/marks';
 import type { Theme } from '../../types/document';
 import { resolveColor, resolveHighlightToCss } from '../../utils/colorResolver';
+import { pickFontFamilyForText, type FontFamilySlots } from '../../utils/fontResolver';
 import { halfPointsToPixels, halfPointsToPoints } from '../../utils/units';
 import { twipsToPixels, constrainImageToPage } from './shared';
 import type { ToFlowBlocksOptions } from './shared';
@@ -31,7 +32,11 @@ import type { ToFlowBlocksOptions } from './shared';
 /**
  * Extract run formatting from ProseMirror marks.
  */
-function extractRunFormatting(marks: readonly Mark[], theme?: Theme | null): RunFormatting {
+function extractRunFormatting(
+  marks: readonly Mark[],
+  theme?: Theme | null,
+  sampleText?: string
+): RunFormatting {
   const formatting: RunFormatting = {};
 
   for (const mark of marks) {
@@ -91,7 +96,7 @@ function extractRunFormatting(marks: readonly Mark[], theme?: Theme | null): Run
 
       case 'fontFamily': {
         const attrs = mark.attrs as FontFamilyAttrs;
-        formatting.fontFamily = attrs.ascii || attrs.hAnsi;
+        formatting.fontFamily = pickFontFamilyForText(attrs, sampleText) ?? undefined;
         break;
       }
 
@@ -255,20 +260,19 @@ function extractRunFormatting(marks: readonly Mark[], theme?: Theme | null): Run
  * fall back to the painter's hardcoded Calibri stack (#392).
  */
 function paragraphRunDefaults(pmAttrs: PMParagraphAttrs): {
-  fontFamily?: string;
+  fontFamilySlots?: FontFamilySlots;
   fontSize?: number;
 } {
   const dtf = pmAttrs.defaultTextFormatting as
     | {
         fontSize?: number;
-        fontFamily?: { ascii?: string; hAnsi?: string };
+        fontFamily?: FontFamilySlots;
       }
     | undefined;
   if (!dtf) return {};
-  const result: { fontFamily?: string; fontSize?: number } = {};
+  const result: { fontFamilySlots?: FontFamilySlots; fontSize?: number } = {};
   if (dtf.fontFamily) {
-    const family = dtf.fontFamily.ascii || dtf.fontFamily.hAnsi;
-    if (family) result.fontFamily = family;
+    result.fontFamilySlots = dtf.fontFamily;
   }
   if (dtf.fontSize != null) {
     // TextFormatting.fontSize is in half-points; RunFormatting.fontSize is points.
@@ -299,7 +303,7 @@ export function paragraphToRuns(
   // content controls keep contributing runs at the right pmStart/pmEnd.
   function pushRunsForChild(child: PMNode, childPos: number): void {
     if (child.isText && child.text) {
-      const formatting = extractRunFormatting(child.marks, theme);
+      const formatting = extractRunFormatting(child.marks, theme, child.text);
       if (inTocParagraph && formatting.hyperlink) {
         // Strip the resolved color/underline so the painter's fallback
         // doesn't fire; the PM doc keeps the original marks so copy/paste
@@ -311,7 +315,11 @@ export function paragraphToRuns(
       const run: TextRun = {
         kind: 'text',
         text: child.text,
-        ...paraDefaults,
+        fontFamily:
+          formatting.fontFamily
+          ?? pickFontFamilyForText(paraDefaults.fontFamilySlots, child.text)
+          ?? undefined,
+        fontSize: formatting.fontSize ?? paraDefaults.fontSize,
         ...formatting,
         pmStart: childPos,
         pmEnd: childPos + child.nodeSize,
@@ -327,7 +335,9 @@ export function paragraphToRuns(
       const formatting = extractRunFormatting(child.marks, theme);
       const run: TabRun = {
         kind: 'tab',
-        ...paraDefaults,
+        fontFamily:
+          formatting.fontFamily ?? pickFontFamilyForText(paraDefaults.fontFamilySlots) ?? undefined,
+        fontSize: formatting.fontSize ?? paraDefaults.fontSize,
         ...formatting,
         pmStart: childPos,
         pmEnd: childPos + child.nodeSize,
@@ -378,6 +388,8 @@ export function paragraphToRuns(
                 : 'OTHER';
       runs.push({
         kind: 'field',
+        fontFamily: pickFontFamilyForText(paraDefaults.fontFamilySlots) ?? undefined,
+        fontSize: paraDefaults.fontSize,
         fieldType: mappedType,
         fallback: (child.attrs.displayText as string) || '',
         pmStart: childPos,

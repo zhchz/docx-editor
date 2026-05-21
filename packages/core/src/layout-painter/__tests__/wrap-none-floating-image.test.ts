@@ -126,4 +126,62 @@ describe('wrapNone floating image rendering', () => {
     expect(parseFloat(firstLine!.style.marginLeft || '0')).toBe(0);
     expect(parseFloat(firstLine!.style.marginRight || '0')).toBe(0);
   });
+
+  test('paragraph-relative floating images ignore spacing.before in anchor Y', () => {
+    const block: ParagraphBlock = {
+      kind: 'paragraph',
+      id: 'p-spacing',
+      attrs: {
+        spacing: {
+          before: 100,
+        },
+      },
+      runs: [positionedImageRun],
+    };
+    const measure: ParagraphMeasure = {
+      kind: 'paragraph',
+      lines: [
+        {
+          fromRun: 0,
+          fromChar: 0,
+          toRun: 0,
+          toChar: 0,
+          width: 0,
+          ascent: 14,
+          descent: 4,
+          lineHeight: 18,
+        },
+      ],
+      totalHeight: 118,
+    };
+    const fragment: ParagraphFragment = {
+      kind: 'paragraph',
+      blockId: 'p-spacing',
+      x: 50,
+      y: 150,
+      width: 500,
+      height: measure.totalHeight,
+      fromLine: 0,
+      toLine: measure.lines.length,
+    };
+    const page: Page = {
+      number: 1,
+      fragments: [fragment],
+      margins: { top: 50, right: 50, bottom: 50, left: 50 },
+      size: { w: 600, h: 800 },
+    };
+
+    const el = renderPage(
+      page,
+      { pageNumber: 1, totalPages: 1, section: 'body' },
+      {
+        document,
+        blockLookup: new Map([['p-spacing', { block, measure }]]),
+      }
+    );
+
+    const floating = el.querySelector<HTMLElement>('.layout-page-floating-image');
+    expect(floating).toBeTruthy();
+    expect(floating?.style.top).toBe('0px');
+  });
 });

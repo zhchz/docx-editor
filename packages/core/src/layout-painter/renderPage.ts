@@ -227,10 +227,10 @@ export function applyPageStyles(
   element.style.backgroundColor = options.backgroundColor ?? '#ffffff';
   element.style.overflow = 'hidden';
 
-  // Page-level default (11pt Calibri). Must use the same chain as canvas
+  // Page-level default. Must use the same chain as canvas
   // measurement in measureContainer.ts, otherwise unbreakable runs that lack
   // an explicit fontFamily can overflow the page margin (#334).
-  element.style.fontFamily = resolveFontFamily('Calibri').cssFallback;
+  element.style.fontFamily = resolveFontFamily('SimSun').cssFallback;
   // Use pixels to match Canvas-based measurements (11pt = 11 * 96/72 ≈ 14.67px)
   element.style.fontSize = `${(11 * 96) / 72}px`;
   element.style.color = '#000000';
@@ -369,13 +369,23 @@ function applyFragmentStyles(
   }
 }
 
+function getParagraphAnchorContentY(fragment: ParagraphFragment, block: ParagraphBlock): number {
+  const fragmentContentY = fragment.y;
+  if (fragment.continuesFromPrev) {
+    return fragmentContentY;
+  }
+
+  const spaceBefore = block.attrs?.spacing?.before ?? 0;
+  return fragmentContentY - spaceBefore;
+}
+
 /**
  * Extract floating images from a paragraph block and determine their page-level positions.
  * Returns extracted images and info for the paragraph about space reserved.
  */
 function extractFloatingImagesFromParagraph(
   block: ParagraphBlock,
-  fragmentY: number, // Y position of the paragraph fragment on the page (relative to content area)
+  anchorY: number, // Y position of the paragraph anchor on the page (relative to content area)
   contentWidth: number, // Width of the content area
   geometry?: PageGeometry
 ): PageFloatingImage[] {
@@ -391,7 +401,7 @@ function extractFloatingImagesFromParagraph(
     const distBottom = imgRun.distBottom ?? 0;
     const distLeft = imgRun.distLeft ?? 12;
     const distRight = imgRun.distRight ?? 12;
-    const { x, y, side } = resolveAnchoredObjectPosition(imgRun, fragmentY, contentWidth, geometry);
+    const { x, y, side } = resolveAnchoredObjectPosition(imgRun, anchorY, contentWidth, geometry);
 
     floatingImages.push({
       src: imgRun.src,
@@ -465,11 +475,12 @@ export function renderPage(
       const blockData = options.blockLookup.get(String(fragment.blockId));
       if (blockData?.block.kind === 'paragraph') {
         const paragraphBlock = blockData.block as ParagraphBlock;
-        // Fragment Y is relative to page top, we need it relative to content area
-        const contentRelativeY = fragment.y - page.margins.top;
+        const anchorContentY =
+          getParagraphAnchorContentY(fragment as ParagraphFragment, paragraphBlock) -
+          page.margins.top;
         const extracted = extractFloatingImagesFromParagraph(
           paragraphBlock,
-          contentRelativeY,
+          anchorContentY,
           contentWidth,
           pageGeometry
         );

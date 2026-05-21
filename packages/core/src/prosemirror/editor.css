@@ -38,7 +38,7 @@
   /* Remove max-width constraint - let the page be its natural size */
   outline: none;
   /* Default font - will be overridden by inline styles from DOCX */
-  font-family: 'Calibri', 'Arial', sans-serif;
+  font-family: 'Times New Roman', 'Tinos', 'Times', 'SimSun', 'Songti SC', 'STSong', 'Noto Serif SC', serif;
   font-size: 11pt;
   /* DO NOT set line-height here - it overrides inline paragraph styles */
   /* line-height is set per-paragraph via inline styles from paragraphAttrsToDOMStyle */

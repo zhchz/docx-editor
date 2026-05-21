@@ -32,6 +32,16 @@ export function useOutlineSidebar({
     }
   }, [showOutlineProp, pagedEditorRef]);
 
+  // Initial open can happen before the editor view is ready. Once loading
+  // finishes, collect headings again so the outline doesn't get stuck empty.
+  useEffect(() => {
+    if (!showOutline || isLoading) return;
+    const view = pagedEditorRef.current?.getView();
+    if (view) {
+      setHeadingInfos(collectHeadings(view.state.doc));
+    }
+  }, [showOutline, isLoading, pagedEditorRef]);
+
   // Toolbar height — drives vertical positioning of the outline panel/button.
   // ResizeObserver tracks the toolbar wrapper so panel placement keeps up with
   // toolbar reflow (responsive breakpoints, font/icon-size changes).

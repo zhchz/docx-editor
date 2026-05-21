@@ -301,13 +301,18 @@ export function useDocxEditorRefApi({
           }
         }
         if (m.fontFamily !== undefined && schema.marks.fontFamily) {
-          if (m.fontFamily && (m.fontFamily.ascii || m.fontFamily.hAnsi)) {
+          if (
+            m.fontFamily &&
+            (m.fontFamily.ascii || m.fontFamily.hAnsi || m.fontFamily.eastAsia || m.fontFamily.cs)
+          ) {
             tr = tr.addMark(
               from,
               to,
               schema.marks.fontFamily.create({
                 ascii: m.fontFamily.ascii ?? null,
                 hAnsi: m.fontFamily.hAnsi ?? m.fontFamily.ascii ?? null,
+                eastAsia: m.fontFamily.eastAsia ?? null,
+                cs: m.fontFamily.cs ?? m.fontFamily.eastAsia ?? m.fontFamily.ascii ?? null,
               })
             );
           } else {

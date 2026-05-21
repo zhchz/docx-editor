@@ -233,7 +233,7 @@ function createTextMeasurer(
   const canvas = doc.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  return (text: string, fontSize = 11, fontFamily = 'Calibri', bold = false, italic = false) => {
+  return (text: string, fontSize = 11, fontFamily = 'Times New Roman', bold = false, italic = false) => {
     if (!ctx) return text.length * 7; // Fallback estimate
     // Font resolver for category-appropriate fallback stacks, matching
     // measureContainer.ts. Include weight + style: `applyRunStyles` sets
@@ -519,7 +519,7 @@ export function renderLine(
 
       // Measure text width for accurate tab position tracking
       const fontSize = run.fontSize || 11;
-      const fontFamily = run.fontFamily || 'Calibri';
+      const fontFamily = run.fontFamily || 'Times New Roman';
       currentX += measureText(run.text, fontSize, fontFamily, run.bold, run.italic);
     } else if (isImageRun(run)) {
       // Skip floating images - they're rendered separately at page level.
@@ -553,7 +553,7 @@ export function renderLine(
       if (run.fieldType === 'PAGE') fieldText = String(options.context.pageNumber);
       else if (run.fieldType === 'NUMPAGES') fieldText = String(options.context.totalPages);
       const fontSize = run.fontSize || 11;
-      const fontFamily = run.fontFamily || 'Calibri';
+      const fontFamily = run.fontFamily || 'Times New Roman';
       currentX += measureText(fieldText, fontSize, fontFamily, run.bold, run.italic);
     } else {
       // Fallback for unknown run types

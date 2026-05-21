@@ -89,6 +89,7 @@ function extractCellFloatingImages(
 ): CellFloatingImage[] {
   const result: CellFloatingImage[] = [];
   let paragraphY = 0;
+  let previousParagraphAfter = 0;
 
   for (let blockIndex = 0; blockIndex < cell.blocks.length; blockIndex++) {
     const block = cell.blocks[blockIndex];
@@ -96,11 +97,16 @@ function extractCellFloatingImages(
       // Use actual measured height for Y tracking
       const blockMeasure = cellMeasure.blocks[blockIndex];
       if (blockMeasure && blockMeasure.kind === 'table') {
-        paragraphY += (blockMeasure as TableMeasure).totalHeight ?? 0;
+        paragraphY += previousParagraphAfter + ((blockMeasure as TableMeasure).totalHeight ?? 0);
+        previousParagraphAfter = 0;
       }
       continue;
     }
     const pBlock = block as ParagraphBlock;
+    const spacing = pBlock.attrs?.spacing;
+    const effectiveSpaceBefore = Math.max(previousParagraphAfter, spacing?.before ?? 0);
+    const paragraphAnchorY = paragraphY;
+    paragraphY += effectiveSpaceBefore;
 
     for (const run of pBlock.runs) {
       if (run.kind !== 'image') continue;
@@ -140,7 +146,7 @@ function extractCellFloatingImages(
       if (position?.vertical) {
         const v = position.vertical;
         if (v.posOffset !== undefined) {
-          y = paragraphY + emuToPixels(v.posOffset);
+          y = paragraphAnchorY + emuToPixels(v.posOffset);
         } else if (v.align === 'top') {
           y = 0;
         }
@@ -173,6 +179,7 @@ function extractCellFloatingImages(
     const blockMeasure = cellMeasure.blocks[blockIndex];
     if (blockMeasure && blockMeasure.kind === 'paragraph') {
       paragraphY += (blockMeasure as ParagraphMeasure).totalHeight;
+      previousParagraphAfter = spacing?.after ?? 0;
     }
   }
 

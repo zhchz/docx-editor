@@ -40,7 +40,7 @@ import { DEFAULT_SINGLE_LINE_RATIO } from '../../utils/fontResolver';
 
 // Default values - match OOXML spec defaults
 const DEFAULT_FONT_SIZE = 11; // 11pt (Word 2007+ default)
-const DEFAULT_FONT_FAMILY = 'Calibri';
+const DEFAULT_FONT_FAMILY = 'Times New Roman';
 
 /** Word's "single line spacing" floor applied to `auto`/`atLeast` line rules. */
 const WORD_SINGLE_LINE_FLOOR = 1.15;

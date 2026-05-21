@@ -6,7 +6,7 @@
  */
 
 import type { TextFormatting, Theme } from '../types';
-import { resolveFontFamily } from './fontResolver';
+import { pickFontFamilyForText, resolveFontFamily } from './fontResolver';
 import { isFontLoaded } from './fontLoader';
 import { halfPointsToPixels } from './units';
 
@@ -157,11 +157,12 @@ function buildFontString(
  */
 function extractFontParams(
   formatting?: TextFormatting,
-  theme?: Theme
+  theme?: Theme,
+  text?: string
 ): { fontFamily: string; fontSize: number; bold: boolean; italic: boolean } {
   // Default values matching Word defaults
   const DEFAULT_FONT_SIZE = 24; // 12pt in half-points
-  const DEFAULT_FONT_FAMILY = 'Calibri';
+  const DEFAULT_FONT_FAMILY = 'Times New Roman';
 
   if (!formatting) {
     const resolved = resolveFontFamily(DEFAULT_FONT_FAMILY);
@@ -177,9 +178,7 @@ function extractFontParams(
   let fontFamilyName = DEFAULT_FONT_FAMILY;
 
   if (formatting.fontFamily) {
-    // Priority: ascii > hAnsi > theme reference
-    fontFamilyName =
-      formatting.fontFamily.ascii || formatting.fontFamily.hAnsi || DEFAULT_FONT_FAMILY;
+    fontFamilyName = pickFontFamilyForText(formatting.fontFamily, text) || DEFAULT_FONT_FAMILY;
 
     // Handle theme font references
     if (!fontFamilyName && theme?.fontScheme) {
@@ -260,7 +259,7 @@ export async function measureText(
 ): Promise<TextMeasurement> {
   // Handle empty text
   if (!text || text.length === 0) {
-    const { fontSize } = extractFontParams(formatting, options?.theme);
+    const { fontSize } = extractFontParams(formatting, options?.theme, text);
     return {
       width: 0,
       height: fontSize * 1.2, // Approximate line height
@@ -268,7 +267,11 @@ export async function measureText(
     };
   }
 
-  const { fontFamily, fontSize, bold, italic } = extractFontParams(formatting, options?.theme);
+  const { fontFamily, fontSize, bold, italic } = extractFontParams(
+    formatting,
+    options?.theme,
+    text
+  );
 
   // Check cache first
   const cacheKey = getCacheKey(text, fontFamily, fontSize, bold, italic);
@@ -368,7 +371,7 @@ export function measureTextSync(
 ): TextMeasurement {
   // Handle empty text
   if (!text || text.length === 0) {
-    const { fontSize } = extractFontParams(formatting, theme);
+    const { fontSize } = extractFontParams(formatting, theme, text);
     return {
       width: 0,
       height: fontSize * 1.2,
@@ -376,7 +379,7 @@ export function measureTextSync(
     };
   }
 
-  const { fontFamily, fontSize, bold, italic } = extractFontParams(formatting, theme);
+  const { fontFamily, fontSize, bold, italic } = extractFontParams(formatting, theme, text);
 
   // Check cache first
   const cacheKey = getCacheKey(text, fontFamily, fontSize, bold, italic);
@@ -553,7 +556,7 @@ export function measureTextWidth(text: string, formatting?: TextFormatting, them
     return 0;
   }
 
-  const { fontFamily, fontSize, bold, italic } = extractFontParams(formatting, theme);
+  const { fontFamily, fontSize, bold, italic } = extractFontParams(formatting, theme, text);
   const ctx = getMeasureContext();
 
   if (!ctx) {

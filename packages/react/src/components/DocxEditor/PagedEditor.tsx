@@ -687,12 +687,11 @@ const PagedEditorComponent = forwardRef<PagedEditorRef, PagedEditorProps>(
         {/* Viewport for visible pages */}
         <div
           ref={viewportLayoutRef}
+          data-winwin-base-height={totalHeight}
           style={{
             ...viewportStyles,
-            minHeight: totalHeight,
-            // Negative margin at zoom<1 shrinks scroll area to match visual height;
-            // positive margin at zoom>1 grows it so content isn't clipped.
-            marginBottom: zoom !== 1 ? totalHeight * (zoom - 1) : undefined,
+            height: totalHeight * zoom,
+            minHeight: totalHeight * zoom,
             transform: (() => {
               const parts: string[] = [];
               if (commentsSidebarOpen) {

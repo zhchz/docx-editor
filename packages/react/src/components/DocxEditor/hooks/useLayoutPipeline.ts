@@ -430,12 +430,10 @@ export function useLayoutPipeline(opts: UseLayoutPipelineOptions): UseLayoutPipe
           const vp = viewportLayoutRef.current;
           if (vp) {
             const mh = viewportMinHeightPx(newLayout, pageGap);
-            vp.style.minHeight = `${mh}px`;
-            if (zoom !== 1) {
-              vp.style.marginBottom = `${mh * (zoom - 1)}px`;
-            } else {
-              vp.style.marginBottom = '';
-            }
+            vp.dataset.winwinBaseHeight = String(mh);
+            vp.style.height = `${mh * zoom}px`;
+            vp.style.minHeight = `${mh * zoom}px`;
+            vp.style.marginBottom = '';
           }
 
           if (scrollParent?.isConnected && anchor) {

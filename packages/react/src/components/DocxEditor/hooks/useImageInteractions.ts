@@ -118,7 +118,8 @@ export function useImageInteractions(
             const currentOffsetY = emuToPixels(
               getNumericPosOffset(currentPosition?.vertical?.posOffset)
             );
-            const paragraphBaseY = currentY - currentOffsetY;
+            const paragraphBaseY =
+              findCellParagraphTop(cellContentEl, pmPos, zoom) ?? currentY - currentOffsetY;
 
             const newPosition = {
               horizontal: {
@@ -240,4 +241,36 @@ function findRenderedFloatingImageElement(
       `.layout-page-floating-image[data-pm-start="${pmPos}"]`,
     ].join(',')
   );
+}
+
+function findCellParagraphTop(
+  cellContentEl: HTMLElement,
+  pmPos: number,
+  zoom: number
+): number | null {
+  let bestParagraph: HTMLElement | null = null;
+  let bestStart = -Infinity;
+  const paragraphs = cellContentEl.querySelectorAll<HTMLElement>('.layout-paragraph[data-pm-start]');
+
+  for (const paragraph of paragraphs) {
+    const start = Number(paragraph.dataset.pmStart);
+    if (!Number.isFinite(start)) continue;
+    const end = Number(paragraph.dataset.pmEnd);
+    if (start <= pmPos && Number.isFinite(end) && pmPos <= end) {
+      return elementTopRelativeTo(paragraph, cellContentEl, zoom);
+    }
+    if (start <= pmPos && start > bestStart) {
+      bestStart = start;
+      bestParagraph = paragraph;
+    }
+  }
+
+  return bestParagraph ? elementTopRelativeTo(bestParagraph, cellContentEl, zoom) : null;
+}
+
+function elementTopRelativeTo(element: HTMLElement, ancestor: HTMLElement, zoom: number): number {
+  const safeZoom = zoom > 0 ? zoom : 1;
+  const elementRect = element.getBoundingClientRect();
+  const ancestorRect = ancestor.getBoundingClientRect();
+  return (elementRect.top - ancestorRect.top) / safeZoom;
 }

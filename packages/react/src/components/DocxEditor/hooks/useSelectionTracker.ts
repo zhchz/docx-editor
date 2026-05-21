@@ -7,6 +7,7 @@ import {
   createStyleResolver,
 } from '@eigenpal/docx-editor-core/prosemirror';
 import { resolveColorToHex } from '@eigenpal/docx-editor-core/utils';
+import { pickFontFamilyForText } from '@eigenpal/docx-editor-core/utils/fontResolver';
 import type { EditorView } from 'prosemirror-view';
 import type { SelectionFormatting } from '../../Toolbar';
 
@@ -142,7 +143,8 @@ export function useSelectionTracker({
 
       // Font/size fall back to the paragraph style's resolved values when no
       // explicit run-level mark is present.
-      let fontFamily = textFormatting.fontFamily?.ascii || textFormatting.fontFamily?.hAnsi;
+      const paragraphText = view?.state.selection.$from.parent.textContent ?? "";
+      let fontFamily = pickFontFamilyForText(textFormatting.fontFamily, paragraphText) ?? undefined;
       let fontSize = textFormatting.fontSize;
       if (!fontFamily || !fontSize) {
         const currentDoc = historyStateRef.current;
@@ -154,7 +156,7 @@ export function useSelectionTracker({
           const resolved = resolver.resolveParagraphStyle(paraStyleId);
           if (!fontFamily && resolved.runFormatting?.fontFamily) {
             fontFamily =
-              resolved.runFormatting.fontFamily.ascii || resolved.runFormatting.fontFamily.hAnsi;
+              pickFontFamilyForText(resolved.runFormatting.fontFamily, paragraphText) ?? undefined;
           }
           if (!fontSize && resolved.runFormatting?.fontSize) {
             fontSize = resolved.runFormatting.fontSize;

@@ -117,6 +117,8 @@ export function extractSelectionState(state: EditorState): SelectionState | null
         textFormatting.fontFamily = {
           ascii: mark.attrs.ascii,
           hAnsi: mark.attrs.hAnsi,
+          eastAsia: mark.attrs.eastAsia,
+          cs: mark.attrs.cs,
         };
         break;
       case 'superscript':

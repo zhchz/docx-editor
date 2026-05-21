@@ -790,7 +790,8 @@ export function getBulletCharacter(level: ListLevel): string {
   }
 
   // Check font for common bullet font mappings
-  const fontFamily = level.rPr?.fontFamily?.ascii || level.rPr?.fontFamily?.hAnsi;
+  const fontFamily =
+    level.rPr?.fontFamily?.eastAsia || level.rPr?.fontFamily?.ascii || level.rPr?.fontFamily?.hAnsi;
 
   if (fontFamily) {
     const fontLower = fontFamily.toLowerCase();

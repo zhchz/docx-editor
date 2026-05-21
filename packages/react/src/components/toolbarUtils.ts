@@ -11,6 +11,7 @@ import type {
   Theme,
 } from '@eigenpal/docx-editor-core/types/document';
 import { resolveColorToHex } from '@eigenpal/docx-editor-core/utils';
+import { pickFontFamilyForText } from '@eigenpal/docx-editor-core/utils/fontResolver';
 import { pointsToHalfPoints } from './ui/FontSizePicker';
 import { createDefaultListState } from './ui/ListButtons';
 import type { SelectionFormatting, FormattingAction } from './Toolbar';
@@ -46,7 +47,7 @@ export function getSelectionFormatting(
     result.strike = formatting.strike;
     result.superscript = formatting.vertAlign === 'superscript';
     result.subscript = formatting.vertAlign === 'subscript';
-    result.fontFamily = formatting.fontFamily?.ascii || formatting.fontFamily?.hAnsi;
+    result.fontFamily = pickFontFamilyForText(formatting.fontFamily) ?? undefined;
     result.fontSize = formatting.fontSize;
     const colorHex = resolveColorToHex(formatting.color, theme);
     result.color = colorHex ? `#${colorHex}` : undefined;
