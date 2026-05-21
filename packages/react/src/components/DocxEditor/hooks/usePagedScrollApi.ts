@@ -76,18 +76,13 @@ export function usePagedScrollApi(opts: UsePagedScrollApiOptions): UsePagedScrol
       const queryPaintedStartEl = (): HTMLElement | null => findBodyPmAnchor(pages, pmPos);
 
       if (!forParaIdScroll) {
-        // Smooth scroll preserves the legacy UX for outline / bookmark /
-        // hyperlink / find-replace navigation. The paraId path uses an
-        // instant manual scroll instead because smooth fights the layout
-        // restore that runs during virtualized paint.
-        const smoothScroll: ScrollIntoViewOptions = {
-          block: 'center',
-          inline: 'nearest',
-          behavior: 'smooth',
-        };
+        // Use manual container scrolling for outline / bookmark / hyperlink /
+        // find-replace navigation. Native scrollIntoView can scroll the host
+        // page when the editor is embedded in another scrollable app shell.
+        const scroller = getScrollContainer() ?? findVerticalScrollParentOrRoot(pages);
         const targetEl = queryPaintedStartEl();
         if (targetEl) {
-          targetEl.scrollIntoView(smoothScroll);
+          scrollElementCenterIntoContainer(targetEl, scroller, 'smooth');
           return;
         }
         const lay = layout;
@@ -108,11 +103,11 @@ export function usePagedScrollApi(opts: UsePagedScrollApiOptions): UsePagedScrol
         const shell = pageShells[pageIndex];
         if (!shell) return;
 
-        shell.scrollIntoView(smoothScroll);
+        scrollElementCenterIntoContainer(shell, scroller, 'smooth');
         runAfterPaint(() => {
           if (!pages.isConnected) return;
           const painted = queryPaintedStartEl();
-          if (painted) painted.scrollIntoView(smoothScroll);
+          if (painted) scrollElementCenterIntoContainer(painted, scroller, 'smooth');
         }, signal);
         return;
       }

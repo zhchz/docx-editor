@@ -21,7 +21,10 @@ export function OutlineToggleButton({
     <button
       className="docx-outline-nav"
       onClick={onClick}
-      onMouseDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       title={t('editor.showDocumentOutline')}
       style={{
         position: 'absolute',

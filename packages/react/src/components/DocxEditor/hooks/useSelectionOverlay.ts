@@ -85,10 +85,14 @@ export function useSelectionOverlay(opts: UseSelectionOverlayOptions): UseSelect
 
   const buildImageSelectionInfo = useCallback(
     (el: HTMLElement, pmPos: number): ImageSelectionInfo => {
+      const isFloatingImage =
+        el.classList.contains('layout-page-floating-image') ||
+        el.classList.contains('layout-cell-floating-image');
       const imgTag = el.tagName === 'IMG' ? el : el.querySelector('img');
-      const rect = (imgTag ?? el).getBoundingClientRect();
+      const target = isFloatingImage ? el : (imgTag ?? el);
+      const rect = target.getBoundingClientRect();
       return {
-        element: (imgTag ?? el) as HTMLElement,
+        element: target as HTMLElement,
         pmPos,
         width: Math.round(rect.width / zoom),
         height: Math.round(rect.height / zoom),
@@ -210,9 +214,7 @@ export function useSelectionOverlay(opts: UseSelectionOverlayOptions): UseSelect
         const { selection: sel } = view.state;
         if (sel instanceof NodeSelection && sel.node.type.name === 'image') {
           const pmPos = sel.from;
-          const imgEl = pagesContainerRef.current
-            ? findBodyPmAnchor(pagesContainerRef.current, pmPos)
-            : null;
+          const imgEl = findSelectedImageElement(pagesContainerRef.current, pmPos);
           if (imgEl) {
             setSelectedImageInfo(buildImageSelectionInfo(imgEl, pmPos));
             return;
@@ -272,4 +274,18 @@ export function useSelectionOverlay(opts: UseSelectionOverlayOptions): UseSelect
     updateSelectionOverlay,
     handleSelectionChange,
   };
+}
+
+function findSelectedImageElement(container: HTMLElement | null, pmPos: number): HTMLElement | null {
+  if (!container || !Number.isFinite(pmPos)) return null;
+  return (
+    findBodyPmAnchor(container, pmPos) ??
+    container.querySelector<HTMLElement>(
+      [
+        `.layout-page-floating-image[data-pm-start="${pmPos}"]`,
+        `.layout-cell-floating-image[data-pm-start="${pmPos}"]`,
+        `.layout-run-image[data-pm-start="${pmPos}"]`,
+      ].join(',')
+    )
+  );
 }

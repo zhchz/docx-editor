@@ -42,8 +42,17 @@ export interface ImageSelectionOverlayProps {
   onResizeStart?: () => void;
   /** Callback when resize ends */
   onResizeEnd?: () => void;
-  /** Callback when image drag-move completes. Receives drop clientX/clientY. */
-  onDragMove?: (pmPos: number, clientX: number, clientY: number) => void;
+  /**
+   * Callback when image drag-move completes.
+   * Receives intended image top-left clientX/clientY plus final pointer clientX/clientY.
+   */
+  onDragMove?: (
+    pmPos: number,
+    targetClientX: number,
+    targetClientY: number,
+    pointerClientX: number,
+    pointerClientY: number
+  ) => void;
   /** Callback when drag starts */
   onDragStart?: () => void;
   /** Callback when drag ends (cancelled or completed) */
@@ -342,6 +351,9 @@ export function ImageSelectionOverlay({
       const DRAG_THRESHOLD = 4; // px before considering it a drag
       const startX = e.clientX;
       const startY = e.clientY;
+      const imageRect = imageInfo.element.getBoundingClientRect();
+      const grabOffsetX = startX - imageRect.left;
+      const grabOffsetY = startY - imageRect.top;
       let dragStarted = false;
       let ghostEl: HTMLElement | null = null;
 
@@ -364,14 +376,14 @@ export function ImageSelectionOverlay({
             'position: fixed; pointer-events: none; z-index: 10000; ' +
             'opacity: 0.5; border: 2px dashed #2563eb; border-radius: 4px; ' +
             'background: rgba(37, 99, 235, 0.1);';
-          ghostEl.style.width = `${overlayRect.width}px`;
-          ghostEl.style.height = `${overlayRect.height}px`;
+          ghostEl.style.width = `${overlayRect.width * zoomRef.current}px`;
+          ghostEl.style.height = `${overlayRect.height * zoomRef.current}px`;
           document.body.appendChild(ghostEl);
         }
 
         if (ghostEl) {
-          ghostEl.style.left = `${moveEvent.clientX - overlayRect.width / 2}px`;
-          ghostEl.style.top = `${moveEvent.clientY - overlayRect.height / 2}px`;
+          ghostEl.style.left = `${moveEvent.clientX - grabOffsetX}px`;
+          ghostEl.style.top = `${moveEvent.clientY - grabOffsetY}px`;
         }
       };
 
@@ -389,7 +401,13 @@ export function ImageSelectionOverlay({
         if (dragStarted) {
           const info = imageInfoRef.current;
           if (info) {
-            onDragMoveRef.current?.(info.pmPos, upEvent.clientX, upEvent.clientY);
+            onDragMoveRef.current?.(
+              info.pmPos,
+              upEvent.clientX - grabOffsetX,
+              upEvent.clientY - grabOffsetY,
+              upEvent.clientX,
+              upEvent.clientY
+            );
           }
           onDragEndRef.current?.();
         }

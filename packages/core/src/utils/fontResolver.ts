@@ -64,7 +64,17 @@ const FONT_MAPPINGS: Record<string, FontMapping> = {
   calibri: {
     googleFont: 'Carlito',
     category: 'sans-serif',
-    fallbackStack: ['Calibri', 'Carlito', 'Arial', 'Helvetica', 'sans-serif'],
+    fallbackStack: [
+      'Calibri',
+      'Carlito',
+      'SimSun',
+      'Songti SC',
+      'STSong',
+      'Noto Serif CJK SC',
+      'Arial',
+      'Helvetica',
+      'sans-serif',
+    ],
     singleLineRatio: 1.2207, // 2500/2048
   },
   cambria: {

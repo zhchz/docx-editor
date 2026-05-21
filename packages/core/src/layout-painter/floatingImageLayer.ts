@@ -69,6 +69,8 @@ export function renderFloatingImagesLayer(
     container.style.pointerEvents = 'auto';
     container.style.top = `${floatImg.y}px`;
     container.style.left = `${floatImg.x}px`;
+    container.style.width = `${floatImg.width}px`;
+    container.style.height = `${floatImg.height}px`;
     if (floatImg.pmStart !== undefined) container.dataset.pmStart = String(floatImg.pmStart);
     if (floatImg.pmEnd !== undefined) container.dataset.pmEnd = String(floatImg.pmEnd);
 

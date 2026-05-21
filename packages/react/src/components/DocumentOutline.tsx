@@ -74,7 +74,11 @@ export const DocumentOutline = React.memo(function DocumentOutline({
         transform: open ? 'translateX(0)' : `translateX(-${OUTLINE_LEFT_OFFSET + OUTLINE_WIDTH}px)`,
         transition: 'transform 0.15s ease-out',
       }}
-      onMouseDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Header — back arrow + title */}
       <div
