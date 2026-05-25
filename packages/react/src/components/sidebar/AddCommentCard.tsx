@@ -26,8 +26,10 @@ export function AddCommentCard({ measureRef, onSubmit, onCancel }: AddCommentCar
       style={{
         padding: 12,
         borderRadius: 8,
-        backgroundColor: '#fff',
-        boxShadow: '0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)',
+        backgroundColor: 'var(--doc-review-card-bg-expanded, #fff)',
+        color: 'var(--doc-text, #202124)',
+        border: '1px solid var(--doc-review-card-border, transparent)',
+        boxShadow: 'var(--doc-review-card-shadow-expanded, 0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15))',
         zIndex: 50,
       }}
     >
@@ -50,7 +52,7 @@ export function AddCommentCard({ measureRef, onSubmit, onCancel }: AddCommentCar
         placeholder={t('comments.addComment')}
         style={{
           width: '100%',
-          border: '1px solid #1a73e8',
+          border: '1px solid var(--doc-action-bg, #1a73e8)',
           borderRadius: 20,
           outline: 'none',
           resize: 'none',
@@ -60,7 +62,8 @@ export function AddCommentCard({ measureRef, onSubmit, onCancel }: AddCommentCar
           fontFamily: 'inherit',
           minHeight: 40,
           boxSizing: 'border-box',
-          color: '#202124',
+          color: 'var(--doc-text, #202124)',
+          backgroundColor: 'var(--doc-bg-input, #fff)',
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
