@@ -6,6 +6,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { parseDocumentBody } from '../documentParser';
+import { getParagraphText } from '../paragraphParser';
 
 const NS =
   'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
@@ -159,6 +160,7 @@ describe('enrichParagraphTextBoxes — mc:AlternateContent traversal', () => {
     const innerText = innerRun.content[0];
     if (innerText.type !== 'text') throw new Error('expected text');
     expect(innerText.text).toBe('Operations Manager');
+    expect(getParagraphText(paragraph)).toBe('Operations Manager');
   });
 
   test('runIndex clamp: every shape in a multi-shape paragraph survives', () => {

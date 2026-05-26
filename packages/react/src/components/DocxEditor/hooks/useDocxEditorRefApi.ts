@@ -211,6 +211,55 @@ export function useDocxEditorRefApi({
         return true;
       },
 
+      proposeInsertion: (options) => {
+        const view = pagedEditorRef.current?.getView();
+        if (!view) return false;
+        const { schema } = view.state;
+        if (!schema.marks.insertion || !options.insertText) return false;
+
+        const range = findParaIdRange(view.state.doc, options.paraId);
+        if (!range) return false;
+
+        const position = options.position === 'before' ? 'before' : 'after';
+        let insertAt: number;
+
+        if (options.search) {
+          const textRange = findTextInPmParagraph(
+            view.state.doc,
+            range.from,
+            range.to,
+            options.search
+          );
+          if (!textRange) return false;
+          insertAt = position === 'before' ? textRange.from : textRange.to;
+        } else {
+          insertAt = position === 'before' ? range.from + 1 : range.to - 1;
+        }
+
+        const activeMarks = view.state.doc.resolve(insertAt).marks();
+        if (
+          activeMarks.some(
+            (mark) => mark.type === schema.marks.insertion || mark.type === schema.marks.deletion
+          )
+        ) {
+          return false;
+        }
+
+        const revisionId = getNextCommentId();
+        const date = new Date().toISOString();
+        const insertionMark = schema.marks.insertion.create({
+          revisionId,
+          author: options.author,
+          date,
+        });
+
+        view.dispatch(
+          view.state.tr.insert(insertAt, schema.text(options.insertText, [insertionMark]))
+        );
+        setShowCommentsSidebar(true);
+        return true;
+      },
+
       applyFormatting: (options) => {
         const view = pagedEditorRef.current?.getView();
         if (!view) return false;

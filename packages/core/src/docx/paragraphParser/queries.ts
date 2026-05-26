@@ -6,7 +6,7 @@
  * on the parsed model only. Mirrors the `tableParser/queries.ts` sibling.
  */
 
-import type { Paragraph } from '../../types/document';
+import type { Paragraph, Shape } from '../../types/document';
 
 /**
  * Get plain text from a paragraph
@@ -30,6 +30,8 @@ export function getParagraphText(paragraph: Paragraph): string {
           } else {
             text += '\n';
           }
+        } else if (runContent.type === 'shape') {
+          text += getShapeText(runContent.shape);
         }
       }
     } else if (content.type === 'hyperlink') {
@@ -64,6 +66,12 @@ export function getParagraphText(paragraph: Paragraph): string {
   }
 
   return text;
+}
+
+function getShapeText(shape: Shape): string {
+  const paragraphs = shape.textBody?.content;
+  if (!paragraphs?.length) return '';
+  return paragraphs.map(getParagraphText).join('\n');
 }
 
 /**

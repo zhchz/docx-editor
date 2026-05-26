@@ -474,7 +474,7 @@ function parseInline(
   inlineEl: XmlElement,
   rels: RelationshipMap | undefined,
   media: Map<string, MediaFile> | undefined
-): Image {
+): Image | null {
   // Parse extent (size)
   const extent = findByFullName(inlineEl, 'wp:extent');
   const size = parseExtent(extent);
@@ -490,6 +490,7 @@ function parseInline(
   // Find blip and extract rId
   const { blip, blipFill } = findBlipChain(inlineEl);
   const rId = extractBlipRId(blip);
+  if (!rId) return null;
   const crop = parseImageCrop(blipFill);
   const opacity = parseImageOpacity(blip);
 
@@ -553,7 +554,7 @@ function parseAnchor(
   anchorEl: XmlElement,
   rels: RelationshipMap | undefined,
   media: Map<string, MediaFile> | undefined
-): Image {
+): Image | null {
   // Parse extent (size)
   const extent = findByFullName(anchorEl, 'wp:extent');
   const size = parseExtent(extent);
@@ -606,6 +607,7 @@ function parseAnchor(
   // Find blip and extract rId
   const { blip, blipFill } = findBlipChain(anchorEl);
   const rId = extractBlipRId(blip);
+  if (!rId) return null;
   const crop = parseImageCrop(blipFill);
   const opacity = parseImageOpacity(blip);
 

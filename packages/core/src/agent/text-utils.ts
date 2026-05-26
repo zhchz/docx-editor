@@ -14,6 +14,7 @@ import type {
   Hyperlink,
   Table,
   TextFormatting,
+  Shape,
 } from '../types/document';
 
 import type { Position } from '../types/agentApi';
@@ -43,10 +44,25 @@ export function getParagraphText(paragraph: Paragraph): string {
  * Get plain text from a run
  */
 export function getRunText(run: Run): string {
-  return run.content
-    .filter((c) => c.type === 'text')
-    .map((c) => (c as { type: 'text'; text: string }).text)
-    .join('');
+  const texts: string[] = [];
+  for (const content of run.content) {
+    if (content.type === 'text') {
+      texts.push(content.text);
+    } else if (content.type === 'tab') {
+      texts.push('\t');
+    } else if (content.type === 'break') {
+      texts.push(content.breakType === 'page' ? '\f' : '\n');
+    } else if (content.type === 'shape') {
+      texts.push(getShapeText(content.shape));
+    }
+  }
+  return texts.join('');
+}
+
+function getShapeText(shape: Shape): string {
+  const paragraphs = shape.textBody?.content;
+  if (!paragraphs?.length) return '';
+  return paragraphs.map(getParagraphText).join('\n');
 }
 
 /**

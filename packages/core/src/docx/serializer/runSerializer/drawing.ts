@@ -292,7 +292,7 @@ export function serializeShapeContent(content: ShapeContent): string {
   const shape = content.shape;
   const cx = shape.size.width;
   const cy = shape.size.height;
-  const isTextBox = shape.shapeType === 'textBox';
+  const isTextBox = shape.shapeType === 'textBox' || Boolean(shape.textBody);
   const isFloating = shape.wrap && shape.wrap.type !== 'inline';
   const distT = shape.wrap?.distT ?? 0;
   const distB = shape.wrap?.distB ?? 0;

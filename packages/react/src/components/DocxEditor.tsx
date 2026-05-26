@@ -335,6 +335,15 @@ export interface DocxEditorRef {
     replaceWith: string;
     author: string;
   }) => boolean;
+  /** Insert tracked text before/after a target phrase in a paragraph.
+   * If `search` is omitted, inserts at paragraph start/end based on `position`. */
+  proposeInsertion: (options: {
+    paraId: string;
+    search?: string;
+    insertText: string;
+    position?: 'before' | 'after';
+    author: string;
+  }) => boolean;
   /** Locate every paragraph containing `query` (case-insensitive substring).
    * Returns a stable handle (paraId + the matched phrase) the agent can pass
    * back to `addComment` / `proposeChange`. */

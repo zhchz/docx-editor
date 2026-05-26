@@ -296,7 +296,7 @@ function enrichParagraphTextBoxes(
     // Convert to Shape with textBody and inject as ShapeContent
     const shape: Shape = {
       type: 'shape',
-      shapeType: 'rect',
+      shapeType: 'textBox',
       size: textBox.size,
       position: textBox.position,
       wrap: textBox.wrap,

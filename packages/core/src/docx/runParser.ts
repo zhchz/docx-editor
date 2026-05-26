@@ -40,6 +40,8 @@ import type {
   Image,
   RelationshipMap,
   MediaFile,
+  Paragraph,
+  Shape,
 } from '../types/document';
 import type { StyleMap } from './styleParser';
 import {
@@ -757,9 +759,33 @@ export function getRunText(run: Run): string {
       text += '\u00AD'; // Soft hyphen Unicode
     } else if (content.type === 'noBreakHyphen') {
       text += '\u2011'; // Non-breaking hyphen Unicode
+    } else if (content.type === 'shape') {
+      text += getShapeText(content.shape);
     }
   }
 
+  return text;
+}
+
+function getShapeText(shape: Shape): string {
+  const paragraphs = shape.textBody?.content;
+  if (!paragraphs?.length) return '';
+  return paragraphs.map((paragraph) => getParagraphTextFromRuns(paragraph.content)).join('\n');
+}
+
+function getParagraphTextFromRuns(content: Paragraph['content']): string {
+  let text = '';
+  for (const item of content) {
+    if (item.type === 'run') {
+      text += getRunText(item);
+    } else if (item.type === 'hyperlink') {
+      for (const child of item.children) {
+        if (child.type === 'run') {
+          text += getRunText(child);
+        }
+      }
+    }
+  }
   return text;
 }
 
