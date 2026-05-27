@@ -1,4 +1,5 @@
 import { useImperativeHandle } from 'react';
+import { Fragment } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import type { Document } from '@eigenpal/docx-editor-core/types/document';
 import type { Comment } from '@eigenpal/docx-editor-core/types/content';
@@ -26,6 +27,38 @@ import { getNextCommentId, createComment } from '../commentFactories';
  * The shape MUST match `DocxEditorRef` byte-for-byte —
  * `scripts/check-editor-contract.mjs` will fail otherwise.
  */
+function sanitizeInsertedParagraphAttrs(attrs: Record<string, unknown>) {
+  const next = { ...attrs };
+  delete next.paraId;
+  delete next.textId;
+  delete next.bookmarks;
+  delete next.sectionBreakType;
+  delete next.sectionProperties;
+  delete next.pageBreakBefore;
+  delete next.renderedPageBreakBefore;
+  return next;
+}
+
+function splitInsertionParagraphs(text: string) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  return lines.length ? lines : [];
+}
+function collectInsertedParagraphMarks(sourceNode: { descendants?: Function } | null | undefined, insertionMark: any) {
+  const inheritedMarks: any[] = [];
+  sourceNode?.descendants?.((node: any) => {
+    if (!node.isText || inheritedMarks.length > 0) {
+      return;
+    }
+    inheritedMarks.push(
+      ...node.marks.filter((mark: any) =>
+        mark.type.name !== 'insertion' && mark.type.name !== 'deletion'
+      ),
+    );
+  });
+  return [...inheritedMarks, insertionMark];
+}
+
+
 export function useDocxEditorRefApi({
   ref,
   agentRef,
@@ -221,8 +254,33 @@ export function useDocxEditorRefApi({
         if (!range) return false;
 
         const position = options.position === 'before' ? 'before' : 'after';
-        let insertAt: number;
+        const revisionId = getNextCommentId();
+        const date = new Date().toISOString();
+        const insertionMark = schema.marks.insertion.create({
+          revisionId,
+          author: options.author,
+          date,
+        });
 
+        if (options.insertMode === 'paragraph') {
+          const paragraphType = schema.nodes.paragraph;
+          if (!paragraphType) return false;
+          const sourceNode = view.state.doc.nodeAt(range.from);
+          const rawAttrs = options.paragraphAttrs ?? sourceNode?.attrs ?? {};
+          const paragraphAttrs = sanitizeInsertedParagraphAttrs(rawAttrs);
+          const inheritedMarks = collectInsertedParagraphMarks(sourceNode, insertionMark);
+          const lines = splitInsertionParagraphs(options.insertText);
+          const paragraphNodes = lines.map((line) => {
+            const content = line ? schema.text(line, inheritedMarks) : undefined;
+            return paragraphType.create(paragraphAttrs, content ? [content] : undefined);
+          });
+          const insertAt = position === 'before' ? range.from : range.to;
+          view.dispatch(view.state.tr.insert(insertAt, Fragment.fromArray(paragraphNodes)));
+          setShowCommentsSidebar(true);
+          return true;
+        }
+
+        let insertAt: number;
         if (options.search) {
           const textRange = findTextInPmParagraph(
             view.state.doc,
@@ -245,16 +303,11 @@ export function useDocxEditorRefApi({
           return false;
         }
 
-        const revisionId = getNextCommentId();
-        const date = new Date().toISOString();
-        const insertionMark = schema.marks.insertion.create({
-          revisionId,
-          author: options.author,
-          date,
-        });
-
+        const inheritedMarks = activeMarks.filter(
+          (mark) => mark.type !== schema.marks.insertion && mark.type !== schema.marks.deletion
+        );
         view.dispatch(
-          view.state.tr.insert(insertAt, schema.text(options.insertText, [insertionMark]))
+          view.state.tr.insert(insertAt, schema.text(options.insertText, [...inheritedMarks, insertionMark]))
         );
         setShowCommentsSidebar(true);
         return true;
@@ -430,7 +483,17 @@ export function useDocxEditorRefApi({
         const doc = view.state.doc;
 
         const seen = new Set<string>();
-        const paragraphs: Array<{ paraId: string; text: string; styleId?: string }> = [];
+        const paragraphs: Array<{
+          paraId: string;
+          text: string;
+          styleId?: string;
+          attrs?: Record<string, unknown>;
+          numPr?: { numId?: number; ilvl?: number } | null;
+          listMarker?: string;
+          listNumFmt?: string;
+          listIsBullet?: boolean;
+          outlineLevel?: number;
+        }> = [];
 
         for (const frag of page.fragments) {
           if (frag.kind !== 'paragraph') continue;
@@ -448,6 +511,12 @@ export function useDocxEditorRefApi({
             paraId,
             text: getVanillaNodeText(node),
             styleId: (node.attrs?.styleId as string | undefined) ?? undefined,
+            attrs: { ...(node.attrs as Record<string, unknown>) },
+            numPr: (node.attrs?.numPr as { numId?: number; ilvl?: number } | null | undefined) ?? undefined,
+            listMarker: (node.attrs?.listMarker as string | undefined) ?? undefined,
+            listNumFmt: (node.attrs?.listNumFmt as string | undefined) ?? undefined,
+            listIsBullet: (node.attrs?.listIsBullet as boolean | undefined) ?? undefined,
+            outlineLevel: (node.attrs?.outlineLevel as number | undefined) ?? undefined,
           });
         }
 

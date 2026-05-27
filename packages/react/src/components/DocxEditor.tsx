@@ -343,6 +343,8 @@ export interface DocxEditorRef {
     insertText: string;
     position?: 'before' | 'after';
     author: string;
+    insertMode?: 'inline' | 'paragraph';
+    paragraphAttrs?: Record<string, unknown>;
   }) => boolean;
   /** Locate every paragraph containing `query` (case-insensitive substring).
    * Returns a stable handle (paraId + the matched phrase) the agent can pass
@@ -383,7 +385,7 @@ export interface DocxEditorRef {
   getPageContent: (pageNumber: number) => {
     pageNumber: number;
     text: string;
-    paragraphs: Array<{ paraId: string; text: string; styleId?: string }>;
+    paragraphs: Array<{ paraId: string; text: string; styleId?: string; attrs?: Record<string, unknown>; numPr?: { numId?: number; ilvl?: number } | null; listMarker?: string; listNumFmt?: string; listIsBullet?: boolean; outlineLevel?: number }>;
   } | null;
   /** Read the user's current cursor / selection — what's highlighted right now. */
   getSelectionInfo: () => {
