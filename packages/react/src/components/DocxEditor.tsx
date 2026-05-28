@@ -387,6 +387,8 @@ export interface DocxEditorRef {
     text: string;
     paragraphs: Array<{ paraId: string; text: string; styleId?: string; attrs?: Record<string, unknown>; numPr?: { numId?: number; ilvl?: number } | null; listMarker?: string; listNumFmt?: string; listIsBullet?: boolean; outlineLevel?: number }>;
   } | null;
+  /** Renumber plain-text clause markers (e.g. `6、`) after paragraph insertions. */
+  renumberPlainTextMarkers: () => boolean;
   /** Read the user's current cursor / selection — what's highlighted right now. */
   getSelectionInfo: () => {
     paraId: string | null;

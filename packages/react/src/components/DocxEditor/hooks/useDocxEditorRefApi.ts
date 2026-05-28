@@ -18,6 +18,7 @@ import {
 import { mapHexToHighlightName } from '../../toolbarUtils';
 import { pointsToHalfPoints } from '../../ui/FontSizePicker';
 import { getNextCommentId, createComment } from '../commentFactories';
+import { renumberPlainTextMarkersInView } from '@legal-docx-adapter/react/pmMarkerRenumber';
 
 /**
  * Owns the `useImperativeHandle` that exposes the public `DocxEditorRef`
@@ -523,6 +524,8 @@ export function useDocxEditorRefApi({
         const text = paragraphs.map((p) => `[${p.paraId}] ${p.text}`).join('\n');
         return { pageNumber, text, paragraphs };
       },
+
+      renumberPlainTextMarkers: () => renumberPlainTextMarkersInView(pagedEditorRef.current?.getView()),
 
       scrollToParaId: (paraId) => pagedEditorRef.current?.scrollToParaId(paraId) ?? false,
 
