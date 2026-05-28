@@ -165,6 +165,9 @@ import type { DocumentBody } from './content';
 import type { StyleDefinitions, Theme, FontTable, RelationshipMap, MediaFile } from './styles';
 import type { NumberingDefinitions } from './lists';
 import type { Footnote, Endnote, HeaderFooter } from './content';
+import type { DocumentSettings } from '../docx/settingsParser';
+
+export type { DocumentSettings } from '../docx/settingsParser';
 
 /**
  * Complete DOCX package structure
@@ -178,6 +181,8 @@ export interface DocxPackage {
   theme?: Theme;
   /** Numbering definitions */
   numbering?: NumberingDefinitions;
+  /** Document-wide settings from `word/settings.xml` */
+  settings?: DocumentSettings;
   /** Font table */
   fontTable?: FontTable;
   /** Footnotes */

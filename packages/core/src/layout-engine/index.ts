@@ -41,6 +41,7 @@ import {
   hasPageBreakBefore,
 } from './keep-together';
 import { isFloatingTextBoxBlock } from './textBoxFlow';
+import { MIN_WRAP_SEGMENT_WIDTH } from '../layout-bridge/measuring/floatingZones';
 
 // Default page size (US Letter in pixels at 96 DPI)
 const DEFAULT_PAGE_SIZE = { w: 816, h: 1056 };
@@ -405,7 +406,10 @@ function layoutParagraph(
     let fittingLines = 0;
 
     for (let j = currentLineIndex; j < lines.length; j++) {
-      const lineHeight = lines[j].lineHeight;
+      // floatSkipBefore reserves vertical space above a line that was pushed past
+      // floats with no horizontal room — it counts toward the fragment height
+      // so subsequent blocks flow below the float, not over it.
+      const lineHeight = lines[j].lineHeight + (lines[j].floatSkipBefore ?? 0);
       const totalWithLine = linesHeight + lineHeight;
 
       // Add space before only for first fragment
@@ -617,6 +621,11 @@ function layoutFloatingTable(
 
   if (floating?.horzAnchor === 'page') baseX = 0;
   if (floating?.vertAnchor === 'page') baseY = 0;
+  // ECMA-376 §17.4.39: vertAnchor="text" positions the table relative to the
+  // line where the table would otherwise appear in flow. We use the current
+  // cursor as that anchor — without this, tables with w:tblpPr w:vertAnchor="text"
+  // jump to the top of the content area.
+  if (floating?.vertAnchor === 'text') baseY = state.cursorY;
 
   // Determine X position
   let x = paginator.getColumnX(state.columnIndex);
@@ -682,8 +691,24 @@ function layoutFloatingTable(
     isFloating: true,
   };
 
-  // Add directly without advancing cursor
+  // Add directly without advancing cursor — narrow floating tables let text
+  // wrap on either side (the painter's float zones handle that).
   state.page.fragments.push(fragment);
+
+  // When a floating table leaves no horizontal room for text on either side
+  // (i.e. effectively block-like), reserve vertical space so subsequent
+  // paragraphs flow below it. Without this, the cursor stays at the table's
+  // top edge and the next paragraph paints over the table rows.
+  const leftFromText = floating?.leftFromText ?? 0;
+  const rightFromText = floating?.rightFromText ?? 0;
+  const leftSpace = x - margins.left - leftFromText;
+  const rightSpace = margins.left + contentWidth - (x + tableWidth) - rightFromText;
+  if (leftSpace < MIN_WRAP_SEGMENT_WIDTH && rightSpace < MIN_WRAP_SEGMENT_WIDTH) {
+    const advanceTo = y + tableHeight + (floating?.bottomFromText ?? 0);
+    if (advanceTo > state.cursorY) {
+      state.cursorY = advanceTo;
+    }
+  }
 }
 
 /**
@@ -882,3 +907,9 @@ export {
 export type { SectionState, BreakDecision } from './section-breaks';
 export type { FootnoteContent } from './types';
 export { findPageIndexContainingPmPos } from './findPageIndexContainingPmPos';
+export {
+  isFloatingTextBoxBlock,
+  floatingTextBoxWrapsText,
+  type TextBoxFlowAttrs,
+} from './textBoxFlow';
+export { isFloatingWrapType, isWrapNone, wrapsAroundText } from '../docx/wrapTypes';

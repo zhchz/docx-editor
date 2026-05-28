@@ -47,6 +47,36 @@
       "id": 89408329,
       "signed_at": "2026-05-19T20:13:53Z",
       "pull_request_no": 568
+    },
+    {
+      "name": "DawnFolk",
+      "id": 105495140,
+      "signed_at": "2026-05-20T17:03:13Z",
+      "pull_request_no": 582
+    },
+    {
+      "name": "AryaBuddha",
+      "id": 40647186,
+      "signed_at": "2026-05-21T21:34:08Z",
+      "pull_request_no": 585
+    },
+    {
+      "name": "fahdarafat",
+      "id": 21697064,
+      "signed_at": "2026-05-24T21:05:07Z",
+      "pull_request_no": 597
+    },
+    {
+      "name": "Pallavikumarimdb",
+      "id": 88898653,
+      "signed_at": "2026-05-25T17:56:38Z",
+      "pull_request_no": 603
+    },
+    {
+      "name": "occupy5",
+      "id": 16299493,
+      "signed_at": "2026-05-26T13:37:00Z",
+      "pull_request_no": 613
     }
   ]
 }

@@ -13,13 +13,17 @@ import type {
   FlowBlock,
   Measure,
   ParagraphBlock,
-  ParagraphMeasure,
   ParagraphFragment,
   TableBlock,
   TableFragment,
+  ImageFragment,
+  TextBoxFragment,
 } from '../../layout-engine/types';
+import { assertExhaustiveFlowBlock } from '../../layout-engine/types';
 import { renderParagraphFragment } from '../renderParagraph';
 import { renderTableFragment } from '../renderTable';
+import { renderImageFragment } from '../renderImage';
+import { renderTextBoxFragment } from '../renderTextBox';
 import { emuToPixels } from '../../utils/units';
 import type { RenderContext, RenderPageOptions } from '../renderPage';
 
@@ -249,9 +253,10 @@ export function renderHeaderFooterContent(
     const measure = content.measures[i];
     if (!block || !measure) continue;
 
-    if (block.kind === 'paragraph' && measure.kind === 'paragraph') {
-      const paragraphBlock = block as ParagraphBlock;
-      const paragraphMeasure = measure as ParagraphMeasure;
+    if (block.kind === 'paragraph') {
+      if (measure.kind !== 'paragraph') continue;
+      const paragraphBlock = block;
+      const paragraphMeasure = measure;
       const paragraphSpacingBefore = paragraphBlock.attrs?.spacing?.before ?? 0;
 
       // Track the Y position where this paragraph starts
@@ -334,7 +339,8 @@ export function renderHeaderFooterContent(
 
       containerEl.appendChild(fragEl);
       cursorY += paragraphMeasure.totalHeight;
-    } else if (block.kind === 'table' && measure.kind === 'table') {
+    } else if (block.kind === 'table') {
+      if (measure.kind !== 'table') continue;
       // HF tables don't paginate, so the synthetic fragment covers all rows.
       const syntheticFragment: TableFragment = {
         kind: 'table',
@@ -375,6 +381,68 @@ export function renderHeaderFooterContent(
         containerEl.appendChild(fragEl);
         cursorY += measure.totalHeight;
       }
+    } else if (block.kind === 'image') {
+      if (measure.kind !== 'image') continue;
+      // Block-level images stack in the HF flow like paragraphs/tables.
+      const syntheticFragment: ImageFragment = {
+        kind: 'image',
+        blockId: block.id,
+        x: 0,
+        y: cursorY,
+        width: measure.width,
+        height: measure.height,
+        pmStart: block.pmStart,
+        pmEnd: block.pmEnd,
+      };
+      const fragEl = renderImageFragment(
+        syntheticFragment,
+        block,
+        measure,
+        { ...context, positioning: 'absolute' },
+        { document: doc }
+      );
+      fragEl.style.top = `${cursorY}px`;
+      fragEl.style.left = '0';
+      containerEl.appendChild(fragEl);
+      cursorY += measure.height;
+    } else if (block.kind === 'textBox') {
+      if (measure.kind !== 'textBox') continue;
+      // Text boxes stack in the HF flow. headerFooterLayout already reserves
+      // their height; without this branch they were measured but never
+      // painted, so they showed in the inline editor but not the page view.
+      const syntheticFragment: TextBoxFragment = {
+        kind: 'textBox',
+        blockId: block.id,
+        x: 0,
+        y: cursorY,
+        width: measure.width,
+        height: measure.height,
+        pmStart: block.pmStart,
+        pmEnd: block.pmEnd,
+      };
+      const fragEl = renderTextBoxFragment(
+        syntheticFragment,
+        block,
+        measure,
+        { ...context, positioning: 'absolute' },
+        { document: doc }
+      );
+      fragEl.style.top = `${cursorY}px`;
+      fragEl.style.left = '0';
+      containerEl.appendChild(fragEl);
+      cursorY += measure.height;
+    } else if (
+      block.kind === 'sectionBreak' ||
+      block.kind === 'pageBreak' ||
+      block.kind === 'columnBreak'
+    ) {
+      // Section/page/column breaks carry no rendering in the header/footer
+      // flow — headers and footers reflow per page, so a break has no meaning.
+    } else {
+      // Exhaustiveness guard: every FlowBlock variant must be handled above.
+      // A new variant fails the typecheck here instead of silently vanishing
+      // from the header/footer page view.
+      assertExhaustiveFlowBlock(block, 'renderHeaderFooterContent');
     }
   }
 

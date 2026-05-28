@@ -73,23 +73,43 @@ const FOOTNOTE_FONT_SIZE_PT = 8;
 /**
  * Scan FlowBlocks for runs with footnoteRefId set.
  * Returns a list of { footnoteId, pmPos } in document order.
+ *
+ * Recurses into container blocks (table cells, text boxes) so footnote
+ * references authored anywhere in the body reach the page-reservation
+ * pass. Without this, a `footnoteRefId` nested inside a table cell never
+ * gets mapped to a page and the per-page `.layout-footnote-area` silently
+ * drops that entry even though the body still renders the in-line ref
+ * marker.
  */
 export function collectFootnoteRefs(
   blocks: FlowBlock[]
 ): Array<{ footnoteId: number; pmPos: number }> {
   const refs: Array<{ footnoteId: number; pmPos: number }> = [];
 
-  for (const block of blocks) {
-    if (block.kind !== 'paragraph') continue;
-    for (const run of block.runs) {
-      if (run.kind === 'text' && run.footnoteRefId != null) {
-        refs.push({
-          footnoteId: run.footnoteRefId,
-          pmPos: run.pmStart ?? 0,
-        });
+  const walk = (input: FlowBlock[]): void => {
+    for (const block of input) {
+      if (block.kind === 'paragraph') {
+        for (const run of block.runs) {
+          if (run.kind === 'text' && run.footnoteRefId != null) {
+            refs.push({
+              footnoteId: run.footnoteRefId,
+              pmPos: run.pmStart ?? 0,
+            });
+          }
+        }
+      } else if (block.kind === 'table') {
+        for (const row of block.rows) {
+          for (const cell of row.cells) {
+            walk(cell.blocks);
+          }
+        }
+      } else if (block.kind === 'textBox') {
+        walk(block.content);
       }
     }
-  }
+  };
+
+  walk(blocks);
 
   return refs;
 }
@@ -227,6 +247,11 @@ export type ConvertFootnoteOptions = {
   theme?: Theme | null;
   /** Measure callback supplied by the rendering adapter. */
   measureBlocks: MeasureBlocksFn;
+  /**
+   * Doc-level `w:defaultTabStop` (twips) from the body so list markers
+   * inside footnotes honor the same tab grid.
+   */
+  defaultTabStopTwips?: number | null;
 };
 
 /**
@@ -246,6 +271,7 @@ export function convertFootnoteToContent(
   const pmDoc = footnoteToProseDoc(footnote.content, {
     styles: options.styles ?? undefined,
     theme: options.theme ?? null,
+    defaultTabStopTwips: options.defaultTabStopTwips ?? null,
   });
   const rawBlocks = toFlowBlocks(pmDoc, { theme: options.theme ?? undefined });
   const blocks = applyFootnotePresentation(rawBlocks, displayNumber);

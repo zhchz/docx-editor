@@ -220,6 +220,7 @@ function paragraphFormattingToAttrs(
     listMarkerHidden: paragraph.listRendering?.markerHidden || undefined,
     listMarkerFontFamily: paragraph.listRendering?.markerFontFamily || undefined,
     listMarkerFontSize: paragraph.listRendering?.markerFontSize || undefined,
+    listMarkerSuffix: paragraph.listRendering?.markerSuffix || undefined,
     listLevelNumFmts: paragraph.listRendering?.levelNumFmts || undefined,
     listAbstractNumId: paragraph.listRendering?.abstractNumId,
     listStartOverride: paragraph.listRendering?.startOverride,

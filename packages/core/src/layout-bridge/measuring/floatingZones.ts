@@ -118,6 +118,47 @@ export function getFloatingMargins(
   return { leftMargin, rightMargin, segments };
 }
 
+/**
+ * Find the next vertical position at or below `startY` where the available
+ * text width is at least `minWidth`. Used to skip lines past stacked floats
+ * when there is no horizontal room for meaningful text at the current Y.
+ *
+ * Returns `startY` if the current position already has enough room, otherwise
+ * the lowest `bottomY` of any zone currently obstructing the line. The caller
+ * is expected to re-query margins at the returned Y.
+ */
+export function findClearLineY(
+  startY: number,
+  lineHeight: number,
+  zones: FloatingImageZone[] | undefined,
+  contentWidth: number,
+  minWidth: number
+): number {
+  if (!zones || zones.length === 0) return startY;
+
+  let y = startY;
+  // Bounded loop — at most one step per zone the line currently overlaps,
+  // plus a safety cushion. Prevents pathological re-entry while keeping the
+  // happy path O(zones).
+  for (let i = 0; i < zones.length + 2; i++) {
+    const margins = getFloatingMargins(y, lineHeight, zones, 0);
+    const width = getFloatingAvailableWidth(margins, contentWidth);
+    if (width >= minWidth) return y;
+
+    const lineBottom = y + lineHeight;
+    let nextY = Infinity;
+    for (const zone of zones) {
+      if (lineBottom <= zone.topY || y >= zone.bottomY) continue;
+      if (zone.bottomY > y && zone.bottomY < nextY) {
+        nextY = zone.bottomY;
+      }
+    }
+    if (!Number.isFinite(nextY) || nextY <= y) return y;
+    y = nextY;
+  }
+  return y;
+}
+
 function intersectSegments(
   a: FloatingLineSegmentZone[],
   b: FloatingLineSegmentZone[]
@@ -138,12 +179,26 @@ function intersectSegments(
   return result;
 }
 
+/**
+ * Minimum horizontal room a side must offer before we treat it as usable for
+ * text wrapping. Below this, the would-be segment is treated as a no-go and
+ * the float falls back to single-side wrap. Without this guard, an image
+ * flush with the right margin produces a 2-px right segment that the painter
+ * cannot fit text into, and the segments path then bypasses leftMargin /
+ * rightMargin composition with co-occurring floats — text overlaps the image.
+ *
+ * Reused by `layoutFloatingTable` (decide if a floating table is effectively
+ * block-like) and by `measureParagraph` (decide if a line should be bumped
+ * past obstructing floats). Keep these usages in sync.
+ */
+export const MIN_WRAP_SEGMENT_WIDTH = 24;
+
 function canSplitCenteredBothSidesWrap(
   rectLeft: number,
   rectRight: number,
   contentWidth: number
 ): boolean {
-  return rectLeft > 0 && rectRight < contentWidth;
+  return rectLeft > MIN_WRAP_SEGMENT_WIDTH && rectRight + MIN_WRAP_SEGMENT_WIDTH < contentWidth;
 }
 
 function centeredWrapSegments(

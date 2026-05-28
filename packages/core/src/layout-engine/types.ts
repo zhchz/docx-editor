@@ -311,6 +311,9 @@ export type ParagraphAttrs = {
   listMarkerHidden?: boolean; // w:vanish on numbering level rPr
   listMarkerFontFamily?: string; // from numbering level rPr (w:rFonts)
   listMarkerFontSize?: number; // from numbering level rPr, in points
+  listMarkerSuffix?: 'tab' | 'space' | 'nothing'; // §17.9.25 w:suff; default 'tab'
+  /** Document-wide `w:defaultTabStop` in twips (§17.6.13). Default 720. */
+  defaultTabStopTwips?: number;
   // Default font for empty paragraphs (from style's rPr / pPr/rPr)
   defaultFontSize?: number; // in points
   defaultFontFamily?: string;
@@ -603,6 +606,12 @@ export type MeasuredLine = {
   rightOffset?: number;
   /** Optional split segments for centered floating exclusions. */
   segments?: MeasuredLineSegment[];
+  /**
+   * Vertical space inserted before this line to skip past floats that leave
+   * no usable horizontal width at the natural line Y. Painters render this
+   * as marginTop on the line element; measurement adds it to totalHeight.
+   */
+  floatSkipBefore?: number;
 };
 
 export type MeasuredLineSegment = {

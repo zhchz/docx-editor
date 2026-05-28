@@ -15,17 +15,19 @@ import type {
   ParagraphBlock,
   ParagraphMeasure,
   ParagraphFragment,
-  ParagraphIndent,
   ParagraphBorders,
   BorderStyle,
   MeasuredLine,
-  TextRun,
 } from '../layout-engine/types';
 import type { RenderContext } from './renderPage';
 import { resolveFontFamily } from '../utils/fontResolver';
 import { PARAGRAPH_CLASS_NAMES } from './renderParagraph/shared';
 import { applyPmPositions } from './renderParagraph/runs';
 import { renderLine } from './renderParagraph/line';
+import {
+  getListMarkerInlineWidth,
+  resolveListMarkerFont,
+} from '../layout-bridge/measuring/listMarkerWidth';
 
 export { PARAGRAPH_CLASS_NAMES } from './renderParagraph/shared';
 export { sliceRunsForLine, renderLine } from './renderParagraph/line';
@@ -398,6 +400,13 @@ export function renderParagraphFragment(
       }
     }
 
+    // Lead skip: a line that was pushed past obstructing floats reserves
+    // vertical space above itself via marginTop. measureParagraph adds the
+    // same amount to totalHeight so containers stay sized correctly.
+    if (line.floatSkipBefore && line.floatSkipBefore > 0) {
+      lineEl.style.marginTop = `${line.floatSkipBefore}px`;
+    }
+
     // Apply line-level indentation
     // Indentation is applied per-line for correct text wrapping
     const hasHanging = indent?.hanging && indent.hanging > 0;
@@ -443,60 +452,28 @@ export function renderParagraphFragment(
       lineEl.style.paddingRight = `${indentRight}px`;
     }
 
-    // Add list marker to first line
-    // List first lines have special handling:
-    // - Marker starts at (indentLeft - hanging)
-    // - Text starts at indentLeft
-    // - The marker box fills the hanging space
+    // First-line list marker. With a hanging indent, reserve that slot for
+    // the marker (padding = indentLeft - hanging). Without it, put the
+    // firstLine offset on padding-left, NOT text-indent: Chrome folds
+    // text-indent into the first inline-block's bounding box, which would
+    // silently override the marker's min-width and break tab-stop alignment.
     if (isFirstLine && block.attrs?.listMarker && !block.attrs?.listMarkerHidden) {
-      // Override padding for list first lines
-      // Marker position = indentLeft - hanging (where first line content starts)
-      const markerPos = Math.max(0, indentLeft - (indent?.hanging ?? 0));
-      lineEl.style.paddingLeft = `${markerPos}px`;
-      lineEl.style.textIndent = '0'; // Don't use textIndent for lists
+      const hanging = indent?.hanging ?? 0;
+      const firstLine = indent?.firstLine ?? 0;
+      const paddingLeftPx =
+        hanging > 0 ? Math.max(0, indentLeft - hanging) : indentLeft + firstLine;
+      lineEl.style.paddingLeft = `${paddingLeftPx}px`;
+      lineEl.style.textIndent = '0';
 
-      // Resolve marker font per ECMA-376 §17.9.6:
-      // 1. Numbering level rPr (explicit marker font)
-      // 2. First text run's font (paragraph content)
-      // 3. Paragraph default font (from style)
-      let firstTextRun: TextRun | undefined;
-      if (!block.attrs.listMarkerFontFamily || !block.attrs.listMarkerFontSize) {
-        for (let ri = line.fromRun; ri <= line.toRun; ri++) {
-          const r = block.runs[ri];
-          if (r && r.kind === 'text') {
-            firstTextRun = r;
-            break;
-          }
-        }
-      }
-      const markerFontFamily =
-        block.attrs.listMarkerFontFamily ??
-        firstTextRun?.fontFamily ??
-        block.attrs.defaultFontFamily;
-      const markerFontSize =
-        block.attrs.listMarkerFontSize ?? firstTextRun?.fontSize ?? block.attrs.defaultFontSize;
-
+      const { fontFamily, fontSize } = resolveListMarkerFont(block);
       const marker = renderListMarker(
         block.attrs.listMarker,
-        indent,
+        getListMarkerInlineWidth(block),
         doc,
-        markerFontFamily,
-        markerFontSize
+        fontFamily,
+        fontSize
       );
-      // With no hanging indent slot reserved for the marker, Word's default
-      // tab suffix wraps the body text below the marker (§17.9.25). We mirror
-      // that by giving the marker its own line, sized to match line height.
-      const hanging = indent?.hanging ?? 0;
-      if (hanging > 0) {
-        lineEl.insertBefore(marker, lineEl.firstChild);
-      } else {
-        const markerLine = doc.createElement('div');
-        markerLine.className = 'layout-line layout-list-marker-line';
-        markerLine.style.height = `${line.lineHeight}px`;
-        markerLine.style.lineHeight = `${line.lineHeight}px`;
-        markerLine.appendChild(marker);
-        fragmentEl.appendChild(markerLine);
-      }
+      lineEl.insertBefore(marker, lineEl.firstChild);
     }
 
     // Append line directly to fragment (per-line margins are applied in renderLine)
@@ -514,46 +491,25 @@ function canRenderSplitLineAroundFloatingObject(
 }
 
 /**
- * Render a list marker element
- *
- * The marker is rendered as an inline-block with a consistent space after it.
- * For short markers, the box fills the hanging indent area.
- * For long markers (like "1.1.1"), we ensure minimum spacing after the text.
+ * Render a list marker element as an inline-block at the start of the
+ * first body line. `minWidth` (from `getListMarkerInlineWidth`) sizes the
+ * marker so the body text aligns at the next tab stop per §17.9.25.
  */
 function renderListMarker(
   marker: string,
-  indent: ParagraphIndent | undefined,
+  minWidth: number,
   doc: Document,
-  fontFamily?: string,
-  fontSize?: number
+  fontFamily: string,
+  fontSize: number
 ): HTMLElement {
   const span = doc.createElement('span');
   span.className = 'layout-list-marker';
-
-  // Apply font styling so the marker matches the paragraph text
-  // Per ECMA-376 §17.9.6, marker formatting comes from level rPr,
-  // then paragraph defaults, then document defaults.
-  if (fontFamily) {
-    span.style.fontFamily = resolveFontFamily(fontFamily).cssFallback;
-  }
-  if (fontSize) {
-    // Convert points to pixels: 1pt = 96/72 px
-    const fontSizePx = (fontSize * 96) / 72;
-    span.style.fontSize = `${fontSizePx}px`;
-  }
-
-  span.textContent = marker;
+  span.style.fontFamily = resolveFontFamily(fontFamily).cssFallback;
+  span.style.fontSize = `${(fontSize * 96) / 72}px`;
   span.style.textAlign = 'left';
   span.style.boxSizing = 'border-box';
-
-  // When a hanging indent reserves space for the marker, render inline-block
-  // so the marker sits in that slot. With no hanging indent the caller wraps
-  // the marker in its own line element instead.
-  const hanging = indent?.hanging ?? 0;
   span.style.display = 'inline-block';
-  if (hanging > 0) {
-    span.style.minWidth = `${hanging}px`;
-  }
-
+  span.style.minWidth = `${minWidth}px`;
+  span.textContent = marker;
   return span;
 }

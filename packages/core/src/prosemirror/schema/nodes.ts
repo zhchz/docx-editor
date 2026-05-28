@@ -65,6 +65,8 @@ export interface ParagraphAttrs {
   listMarkerFontFamily?: string;
   /** Marker font size from numbering level rPr, in points */
   listMarkerFontSize?: number;
+  /** Suffix after the marker (§17.9.25); default `tab`. */
+  listMarkerSuffix?: 'tab' | 'space' | 'nothing';
   /**
    * NumberFormat for each level 0..ilvl (inclusive).
    * Lets toFlowBlocks resolve multi-level templates like "%1.%2." with

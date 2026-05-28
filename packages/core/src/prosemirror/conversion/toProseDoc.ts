@@ -31,6 +31,14 @@ import { convertParagraphWithTextBoxes } from './toProseDoc/textbox';
 export interface ToProseDocOptions {
   /** Style definitions for resolving paragraph styles */
   styles?: StyleDefinitions;
+  /**
+   * Doc-level `w:defaultTabStop` (§17.6.13) in twips, stamped onto the PM
+   * doc node so `toFlowBlocks` picks it up. The body entry point reads
+   * this from the parsed package; HF/footnote callers must pass it
+   * through explicitly since their input is a content array, not a full
+   * `Document`. Falls back to the OOXML default (720 twips) when null.
+   */
+  defaultTabStopTwips?: number | null;
 }
 
 /**
@@ -66,7 +74,11 @@ export function toProseDoc(document: Document, options?: ToProseDocOptions): PMN
     nodes.push(schema.node('paragraph', {}, []));
   }
 
-  return schema.node('doc', null, nodes);
+  return schema.node(
+    'doc',
+    { defaultTabStopTwips: document.package.settings?.defaultTabStop ?? null },
+    nodes
+  );
 }
 
 /**
@@ -96,7 +108,7 @@ export function headerFooterToProseDoc(
     nodes.push(schema.node('paragraph', {}, []));
   }
 
-  return schema.node('doc', null, nodes);
+  return schema.node('doc', { defaultTabStopTwips: options?.defaultTabStopTwips ?? null }, nodes);
 }
 
 /**

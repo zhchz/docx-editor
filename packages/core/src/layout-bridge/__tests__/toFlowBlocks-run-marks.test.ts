@@ -1,20 +1,26 @@
 /**
  * Integration tests — run-level OOXML attributes survive the bridge.
  *
- * Regression guard for #410: `extractRunFormatting` had no `case` for several
- * run-level marks (`allCaps`, `smallCaps`, `position`, `horizontalScale`,
- * `kerning`, `characterSpacing`'s position/scale/kerning attrs), so painted
- * runs lost the values. The hidden ProseMirror toDOM rendered them correctly
- * — only the layout-painter pipeline silently dropped them.
+ * Regression guards for cases where the layout-painter pipeline silently
+ * dropped formatting the hidden ProseMirror toDOM rendered correctly:
+ *  - #410: `extractRunFormatting` had no `case` for several run-level marks
+ *    (`allCaps`, `smallCaps`, `position`, `horizontalScale`, `kerning`,
+ *    `characterSpacing`'s position/scale/kerning attrs).
+ *  - #392: runs inherited none of the paragraph's `defaultTextFormatting`.
+ *  - Field nodes (PAGE etc.) carried marks the bridge never extracted, so a
+ *    page number painted at the painter's defaults instead of its run's rPr.
  */
 
 import { describe, test, expect } from 'bun:test';
 import { Schema } from 'prosemirror-model';
 import { toFlowBlocks } from '../toFlowBlocks';
-import type { ParagraphBlock, TextRun } from '../../layout-engine/types';
+import type { ParagraphBlock, TextRun, FieldRun } from '../../layout-engine/types';
 
-// Minimal schema with the marks we exercise. Mirrors the actual ParagraphExtension
-// + the marks added in #410's fix; we don't need the full StarterKit here.
+// Minimal schema with the marks/nodes we exercise. Mirrors the actual
+// ParagraphExtension + FieldExtension + the marks added in #410's fix; we
+// don't need the full StarterKit here. Like the real `field` NodeSpec, the
+// node declares no `marks` property, so ProseMirror allows all marks on it —
+// the behavior the field-formatting tests depend on.
 const schema = new Schema({
   nodes: {
     doc: { content: 'paragraph+' },
@@ -27,8 +33,36 @@ const schema = new Schema({
       },
     },
     text: { group: 'inline' },
+    field: {
+      inline: true,
+      group: 'inline',
+      atom: true,
+      attrs: {
+        fieldType: { default: 'UNKNOWN' },
+        instruction: { default: '' },
+        displayText: { default: '' },
+        fieldKind: { default: 'simple' },
+        fldLock: { default: false },
+        dirty: { default: false },
+      },
+    },
   },
   marks: {
+    bold: {},
+    fontSize: {
+      attrs: { size: { default: 22 } },
+    },
+    textColor: {
+      attrs: {
+        rgb: { default: null },
+        themeColor: { default: null },
+        themeTint: { default: null },
+        themeShade: { default: null },
+      },
+    },
+    hyperlink: {
+      attrs: { href: { default: '' }, tooltip: { default: undefined } },
+    },
     allCaps: {},
     smallCaps: {},
     emboss: {},
@@ -58,6 +92,13 @@ function buildSingleRunDoc(text: string, markName: string, attrs?: Record<string
 function firstRun(blocks: unknown[]): TextRun {
   const para = blocks.find((b) => (b as ParagraphBlock).kind === 'paragraph') as ParagraphBlock;
   return para.runs![0] as TextRun;
+}
+
+function firstFieldRun(blocks: unknown[]): FieldRun {
+  const para = blocks.find((b) => (b as ParagraphBlock).kind === 'paragraph') as ParagraphBlock;
+  const run = para.runs![0];
+  expect(run.kind).toBe('field');
+  return run as FieldRun;
 }
 
 describe('toFlowBlocks — run-level marks reach RunFormatting (#410)', () => {
@@ -170,6 +211,65 @@ describe('toFlowBlocks — paragraph defaultTextFormatting cascades to runs (#39
     ]);
     const blocks = toFlowBlocks(doc, {});
     expect(firstRun(blocks).fontSize).toBe(11);
+  });
+
+  test('field nodes inherit paragraph defaultTextFormatting (font/size)', () => {
+    const field = schema.node('field', {
+      fieldType: 'PAGE',
+      instruction: 'PAGE',
+      displayText: '1',
+    });
+    const doc = schema.node('doc', null, [
+      schema.node(
+        'paragraph',
+        {
+          defaultTextFormatting: {
+            fontFamily: { ascii: 'Arial Narrow', hAnsi: 'Arial Narrow' },
+            fontSize: 18, // half-points → 9pt footer size
+          },
+        },
+        [field]
+      ),
+    ]);
+    const run = firstFieldRun(toFlowBlocks(doc, {}));
+    expect(run.fontFamily).toBe('Arial Narrow');
+    expect(run.fontSize).toBe(9);
+  });
+
+  test('field nodes carry their own character marks (size/color/allCaps)', () => {
+    const field = schema.node(
+      'field',
+      { fieldType: 'PAGE', instruction: 'PAGE', displayText: '1' },
+      undefined,
+      [
+        schema.marks.fontSize.create({ size: 18 }),
+        schema.marks.textColor.create({ rgb: '404040' }),
+        schema.marks.allCaps.create(),
+      ]
+    );
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, [field])]);
+    const run = firstFieldRun(toFlowBlocks(doc, {}));
+    expect(run.fontSize).toBe(9);
+    expect(run.color).toBe('#404040');
+    expect(run.allCaps).toBe(true);
+  });
+
+  test('field nodes in a TOC paragraph drop hyperlink default styling', () => {
+    // A TOC entry's page number is a PAGEREF field inside the entry's
+    // hyperlink. Word paints it in the TOC paragraph color, not link blue.
+    const field = schema.node(
+      'field',
+      { fieldType: 'PAGEREF', instruction: 'PAGEREF _Toc1 \\h', displayText: '3' },
+      undefined,
+      [
+        schema.marks.hyperlink.create({ href: '#_Toc1' }),
+        schema.marks.textColor.create({ rgb: '0563C1' }),
+      ]
+    );
+    const doc = schema.node('doc', null, [schema.node('paragraph', { styleId: 'TOC1' }, [field])]);
+    const run = firstFieldRun(toFlowBlocks(doc, {}));
+    expect(run.color).toBeUndefined();
+    expect(run.hyperlink?.noDefaultStyle).toBe(true);
   });
 
   test('explicit run-level mark overrides paragraph default', () => {

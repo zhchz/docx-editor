@@ -37,6 +37,7 @@ import { parseRelationships, RELATIONSHIP_TYPES } from './relsParser';
 import { parseTheme } from './themeParser';
 import { parseStyles, parseStyleDefinitions, type StyleMap } from './styleParser';
 import { parseNumbering, type NumberingMap } from './numberingParser';
+import { parseSettings } from './settingsParser';
 import { parseDocumentBody, extractAllTemplateVariables } from './documentParser';
 import { parseHeader, parseFooter } from './headerFooterParser';
 import { parseFootnotes, parseEndnotes } from './footnoteParser';
@@ -163,6 +164,7 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     // ========================================================================
     onProgress('Parsing numbering...', 30);
     const numbering = timeStage('numbering', () => parseNumbering(raw.numberingXml));
+    const settings = timeStage('settings', () => parseSettings(raw.settingsXml));
     onProgress('Parsed numbering', 35);
 
     // ========================================================================
@@ -278,6 +280,7 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
       styles: styleDefinitions,
       theme,
       numbering: numbering.definitions,
+      settings,
       headers,
       footers,
       footnotes,

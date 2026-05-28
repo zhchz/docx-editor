@@ -24,7 +24,11 @@ import { fromProseDoc } from '@eigenpal/docx-editor-core/prosemirror/conversion/
 import { singletonManager } from '@eigenpal/docx-editor-core/prosemirror/schema';
 import type { CommandMap } from '@eigenpal/docx-editor-core/prosemirror/extensions/types';
 import { toFlowBlocks } from '@eigenpal/docx-editor-core/layout-bridge/toFlowBlocks';
-import { measureParagraph } from '@eigenpal/docx-editor-core/layout-bridge/measuring';
+import {
+  measureBlocksWithFloats,
+  measureParagraph,
+} from '@eigenpal/docx-editor-core/layout-bridge/measuring';
+import type { FloatingImageZone } from '@eigenpal/docx-editor-core/layout-bridge/measuring';
 import {
   measureTableBlock,
   convertHeaderFooterToContent,
@@ -83,17 +87,27 @@ const DEFAULT_PAGE_GAP = 24;
 // twips→px math + HF lookup. Imported at the top of this file.
 
 /**
- * Simplified block measurement for the Vue harness. Floating zones and
- * two-pass HF measurement are still React-only; footnotes are now
- * supported via the two-pass layout in `runLayoutPipeline`.
+ * Block measurement for the Vue harness. Two-pass HF measurement is still
+ * React-only; footnotes are supported via the two-pass layout in
+ * `runLayoutPipeline`. Floating-zone orchestration is shared with React
+ * via `measureBlocksWithFloats` in core so anchored images, floating
+ * textboxes, and floating tables wrap text consistently across adapters.
  *
  * `measureTableBlock` lives in `@eigenpal/docx-editor-core/layout-bridge`
  * so React and Vue stay in lockstep on table-cell measurement.
  */
-function measureBlock(block: FlowBlock, contentWidth: number): Measure {
+function measureBlock(
+  block: FlowBlock,
+  contentWidth: number,
+  floatingZones?: FloatingImageZone[],
+  cumulativeY?: number
+): Measure {
   switch (block.kind) {
     case 'paragraph':
-      return measureParagraph(block as ParagraphBlock, contentWidth);
+      return measureParagraph(block as ParagraphBlock, contentWidth, {
+        floatingZones,
+        paragraphYOffset: cumulativeY ?? 0,
+      });
 
     case 'table':
       return measureTableBlock(block as TableBlock, contentWidth, measureBlock);
@@ -134,7 +148,7 @@ function measureBlock(block: FlowBlock, contentWidth: number): Measure {
 }
 
 function measureBlocks(blocks: FlowBlock[], contentWidth: number): Measure[] {
-  return blocks.map((b) => measureBlock(b, contentWidth));
+  return measureBlocksWithFloats(blocks, contentWidth, measureBlock);
 }
 
 // ============================================================================
@@ -266,7 +280,8 @@ export function useDocxEditor(options: UseDocxEditorOptions): UseDocxEditorRetur
       // the per-block callback the earlier version used. The pipeline
       // calls `measureBlocks(normalizedBlocks, contentWidth)` once per
       // HF flow.
-      const hfOptions = { styles, theme, measureBlocks };
+      const defaultTabStopTwips = state.doc.attrs?.defaultTabStopTwips as number | null;
+      const hfOptions = { styles, theme, measureBlocks, defaultTabStopTwips };
       const headerContent = convertHeaderFooterToContent(
         header,
         contentWidth,
@@ -350,7 +365,7 @@ export function useDocxEditor(options: UseDocxEditorOptions): UseDocxEditorRetur
           document.value.package!.footnotes!,
           footnoteRefs,
           contentWidth,
-          { styles, theme, measureBlocks }
+          { styles, theme, measureBlocks, defaultTabStopTwips }
         );
 
         // Pass 2+: multi-pass convergence loop lives in core so the React

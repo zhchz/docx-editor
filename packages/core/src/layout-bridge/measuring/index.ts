@@ -48,6 +48,8 @@ export {
   type FloatingLineSegmentZone,
 } from './floatingZones';
 
+export { measureBlocksWithFloats, type MeasureBlockFn } from './measureBlocksPipeline';
+
 // Caching utilities
 export {
   // Text width cache

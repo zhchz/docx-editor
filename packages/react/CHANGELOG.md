@@ -1,5 +1,40 @@
 # @eigenpal/docx-js-editor
 
+## 1.0.3
+
+### Patch Changes
+
+- 3e4b98e: Fix inline-image header lines to match Word. A line with a tall inline logo plus short text now baseline-aligns the label with the image bottom instead of centering it in an inflated line box, so it hugs the paragraph border. Inline images also honor their `wp:inline` distT/distB wrap distances, which previously only the block-image path applied.
+- 0a93cc3: Internal: co-locate the Tailwind library config inside `packages/react/`. No runtime change.
+- 6d56181: Vue now renders documents with stacked floating objects identically to React. Previously, the Vue composable ran a simplified measurement pipeline without floating-zone awareness, so anchored images / floating textboxes / floating tables would not push body text below them in Vue. The float-extraction and per-block orchestration is now shared from `@eigenpal/docx-editor-core/layout-bridge` (`measureBlocksWithFloats`); both adapters call it with their own per-block measure callback.
+- e80093d: Body text now flows around stacked floating objects correctly. Documents with a side-anchored textbox plus an image floating to the right, or with a floating table whose width fills the page, used to render body paragraphs at full content width on top of the floats, push tables to the page top, or collapse the first paragraph to a single glyph per line. All three cases now match Word's layout.
+- Updated dependencies [24b31a4]
+- Updated dependencies [ec36a50]
+- Updated dependencies [143c31e]
+- Updated dependencies [d91357e]
+- Updated dependencies [bdd7f50]
+- Updated dependencies [6d56181]
+- Updated dependencies [e80093d]
+  - @eigenpal/docx-editor-core@1.0.3
+  - @eigenpal/docx-editor-agents@1.0.3
+  - @eigenpal/docx-editor-i18n@1.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- eb785dc: Fix `generateHexId` producing `w14:paraId` / `w14:textId` / comment `paraId` / `w16cid:durableId` values above their OOXML `ST_LongHexNumber` caps.
+
+  `paraId` / `textId` are capped at `< 0x80000000`; `durableId` is capped at the stricter `< 0x7FFFFFFF`. Half of generated IDs previously landed in `[0x80000000, 0x100000000)` (paraId/textId/comment-paraId violations) and `0x7FFFFFFF` itself was also reachable (durableId violation). Word silently recovers these as "Document Recovery — Table Properties" on open and strict OOXML validators reject them.
+
+  The generator now draws from `[0, 0x7FFFFFFE]` — the strictest bound across all consumers — so every ID is valid for every field that uses `generateHexId`.
+
+- ba67554: Render PAGE/NUMPAGES/DATE field results with their own run formatting. The layout bridge dropped the field node's character marks, so a page number in a footer painted at the default font size and color instead of the footer run's.
+- Updated dependencies [4e73af5]
+  - @eigenpal/docx-editor-core@1.0.2
+  - @eigenpal/docx-editor-agents@1.0.2
+  - @eigenpal/docx-editor-i18n@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes

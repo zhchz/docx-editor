@@ -262,6 +262,13 @@ export type ConvertHeaderFooterOptions = {
   styles?: StyleDefinitions | null;
   theme?: Theme | null;
   measureBlocks: MeasureBlocksFn;
+  /**
+   * `w:defaultTabStop` (twips) read from `state.doc.attrs.defaultTabStopTwips`
+   * on the body doc — HF content doesn't carry its own doc-level setting,
+   * so pass it through so list markers inside headers/footers honor the
+   * same tab grid as the body.
+   */
+  defaultTabStopTwips?: number | null;
 };
 
 /**
@@ -285,6 +292,7 @@ export function convertHeaderFooterToContent(
   const pmDoc = headerFooterToProseDoc(headerFooter.content, {
     styles: options.styles ?? undefined,
     theme: options.theme ?? null,
+    defaultTabStopTwips: options.defaultTabStopTwips ?? null,
   });
   const blocks = toFlowBlocks(pmDoc, { theme: options.theme ?? undefined });
   if (blocks.length === 0) return undefined;

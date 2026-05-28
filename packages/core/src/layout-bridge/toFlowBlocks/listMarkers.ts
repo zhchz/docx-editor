@@ -9,7 +9,7 @@
 
 import type { NumberFormat } from '../../types/document';
 import type { ParagraphAttrs as PMParagraphAttrs } from '../../prosemirror/schema/nodes';
-import { convertBulletToUnicode } from '../../docx/documentParser';
+import { convertBulletToUnicode } from '../../docx/blockContentParser';
 
 export function formatNumberedMarker(counters: number[], level: number): string {
   const parts: number[] = [];

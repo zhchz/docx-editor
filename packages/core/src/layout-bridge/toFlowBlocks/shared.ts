@@ -17,6 +17,13 @@ export type ToFlowBlocksOptions = {
   /** Page content height in pixels (pageHeight - marginTop - marginBottom). Images taller than this are scaled down to fit. */
   pageContentHeight?: number;
   /**
+   * Document-wide `w:defaultTabStop` (§17.6.13) in twips. Stamped onto each
+   * paragraph's attrs so the layout-time list-marker helper can snap body
+   * text to the default tab grid when no custom `w:tabs` are defined.
+   * Default 720 twips (Word's spec default).
+   */
+  defaultTabStopTwips?: number;
+  /**
    * @internal Allocated by toFlowBlocks() and threaded through table /
    * text-box conversion so list numbering stays continuous across containers.
    * Keyed by abstractNumId when known (ECMA-376 §17.9.18: numIds sharing one

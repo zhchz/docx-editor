@@ -51,7 +51,8 @@ function convertParagraphAttrs(
   pmAttrs: PMParagraphAttrs,
   theme?: Theme | null,
   listCounters?: Map<number, number[]>,
-  listSeenNumIds?: Set<string>
+  listSeenNumIds?: Set<string>,
+  defaultTabStopTwips?: number
 ): ParagraphAttrs {
   const attrs: ParagraphAttrs = {};
 
@@ -244,6 +245,12 @@ function convertParagraphAttrs(
   if (pmAttrs.listMarkerFontSize) {
     attrs.listMarkerFontSize = pmAttrs.listMarkerFontSize;
   }
+  if (pmAttrs.listMarkerSuffix) {
+    attrs.listMarkerSuffix = pmAttrs.listMarkerSuffix;
+  }
+  if (defaultTabStopTwips !== undefined) {
+    attrs.defaultTabStopTwips = defaultTabStopTwips;
+  }
 
   // Default font for empty paragraph measurement (from style's rPr / pPr/rPr)
   const dtf = pmAttrs.defaultTextFormatting as
@@ -309,7 +316,8 @@ function convertParagraph(
     pmAttrs,
     options.theme,
     options.listCounters,
-    options.listSeenNumIds
+    options.listSeenNumIds,
+    options.defaultTabStopTwips
   );
 
   return {
@@ -628,10 +636,15 @@ function convertTextBoxNode(
  * Tracks pmStart/pmEnd positions for each block for click-to-position mapping.
  */
 export function toFlowBlocks(doc: PMNode, options: ToFlowBlocksOptions = {}): FlowBlock[] {
+  // Doc-level `defaultTabStopTwips` (from settings.xml) rides on the PM
+  // doc node so callers don't have to plumb a separate prop. Explicit
+  // options still win for callers that override.
+  const docDefaultTabStop = doc.attrs?.defaultTabStopTwips as number | undefined;
   const opts: ToFlowBlocksOptions = {
     ...options,
     defaultFont: options.defaultFont ?? DEFAULT_FONT,
     defaultSize: options.defaultSize ?? DEFAULT_SIZE,
+    defaultTabStopTwips: options.defaultTabStopTwips ?? docDefaultTabStop,
   };
 
   const blocks: FlowBlock[] = [];

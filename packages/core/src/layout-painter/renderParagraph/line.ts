@@ -114,6 +114,14 @@ interface RenderLineOptions {
 }
 
 /**
+ * Map a paragraph/image alignment to the `justify-content` value used when a
+ * line is laid out as a flex row. `left`, `justify`, and unset all pack left.
+ */
+function alignToJustifyContent(align: string | undefined): string {
+  return align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
+}
+
+/**
  * Build a stable key for an inline image run.
  * PM positions are preferred because they uniquely identify the source node.
  */
@@ -301,12 +309,21 @@ export function renderLine(
     const effectiveAlign = imageAlign ?? alignment;
     lineEl.style.display = 'flex';
     lineEl.style.alignItems = 'center';
-    lineEl.style.justifyContent =
-      effectiveAlign === 'center'
-        ? 'center'
-        : effectiveAlign === 'right'
-          ? 'flex-end'
-          : 'flex-start';
+    lineEl.style.justifyContent = alignToJustifyContent(effectiveAlign);
+    lineEl.dataset.flexLine = 'true';
+  } else if (runsForLine.some(isImageRun)) {
+    // Image flowing alongside text/tabs (logo + label header line). Word seats
+    // an inline image as a tall glyph on the text baseline, so baseline-align
+    // the row — the image bottom then lands on the text baseline. The line
+    // height was measured to match (imageH + text descent).
+    lineEl.style.display = 'flex';
+    lineEl.style.alignItems = 'baseline';
+    lineEl.style.justifyContent = alignToJustifyContent(alignment);
+    // Flex blockifies the run spans, so they'd otherwise inherit the line's
+    // image-inflated line-height as their own box height — fattening each
+    // text run to the full band and breaking baseline alignment. Reset to the
+    // font's natural line box; the line div keeps its explicit `height`.
+    lineEl.style.lineHeight = 'normal';
     lineEl.dataset.flexLine = 'true';
   }
 
@@ -396,20 +413,31 @@ export function renderLine(
     const run = runsForLine[i];
 
     if (isTabRun(run) && tabContext) {
-      // Get text following this tab for alignment calculations
+      // Measure the content after this tab so end/center/decimal stops can
+      // anchor it to the stop. Per-run measurement (not a single-font pass)
+      // keeps the tab width accurate when trailing runs differ in font/size.
+      const followingWidth = measureFollowingContentWidth(
+        runsForLine,
+        i,
+        measureText,
+        options?.context
+      );
       const followingText = getTextAfterTab(runsForLine, i, options?.context);
+      const decimalIndex = followingText.indexOf('.');
+      const decimalPrefixWidth =
+        decimalIndex >= 0 ? measureText(followingText.slice(0, decimalIndex)) : 0;
 
       // Calculate tab width based on current position
-      const tabResult = calculateTabWidth(currentX, tabContext, followingText, measureText);
+      const tabResult = calculateTabWidth(currentX, tabContext, {
+        followingWidth,
+        decimalPrefixWidth,
+      });
 
       // Right-tab anchor (TOC pattern): when an end-aligned tab's stop is at
       // the line's right edge, let flex layout pin the trailing content there
       // (tab gets flex: 1) — sidesteps canvas-vs-DOM measurement drift.
       const lineRightEdgeX = options?.lineRightEdgePx;
-      const followingWidthForCheck =
-        lineRightEdgeX !== undefined
-          ? measureFollowingContentWidth(runsForLine, i, measureText, options?.context)
-          : 0;
+      const followingWidthForCheck = followingWidth;
       // Gated to the last tab on the line — a trailing tab after a flex-anchored
       // item would push the anchor left.
       let hasFollowingTab = false;

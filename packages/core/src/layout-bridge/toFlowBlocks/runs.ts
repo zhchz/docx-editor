@@ -282,6 +282,21 @@ function paragraphRunDefaults(pmAttrs: PMParagraphAttrs): {
 }
 
 /**
+ * Hyperlinks inside TOC paragraphs render in the TOCx paragraph color, not
+ * the Hyperlink character style's blue/underline. Strip the resolved
+ * color/underline so the painter's link fallback doesn't fire; the PM doc
+ * keeps the original marks so copy/paste out of a TOC carries the Hyperlink
+ * styling like Word does. Applies to both text and field runs (a TOC entry's
+ * page number is a PAGEREF field inside the entry's hyperlink).
+ */
+function stripTocHyperlinkStyle(formatting: RunFormatting): void {
+  if (!formatting.hyperlink) return;
+  formatting.hyperlink = { ...formatting.hyperlink, noDefaultStyle: true };
+  delete formatting.color;
+  delete formatting.underline;
+}
+
+/**
  * Convert a paragraph node to runs.
  */
 export function paragraphToRuns(
@@ -303,6 +318,7 @@ export function paragraphToRuns(
   // content controls keep contributing runs at the right pmStart/pmEnd.
   function pushRunsForChild(child: PMNode, childPos: number): void {
     if (child.isText && child.text) {
+<<<<<<< HEAD
       const formatting = extractRunFormatting(child.marks, theme, child.text);
       if (inTocParagraph && formatting.hyperlink) {
         // Strip the resolved color/underline so the painter's fallback
@@ -312,6 +328,10 @@ export function paragraphToRuns(
         delete formatting.color;
         delete formatting.underline;
       }
+=======
+      const formatting = extractRunFormatting(child.marks, theme);
+      if (inTocParagraph) stripTocHyperlinkStyle(formatting);
+>>>>>>> c1a98f9a1f93d0b7da8673ce26be11b54b8f1b0d
       const run: TextRun = {
         kind: 'text',
         text: child.text,
@@ -386,12 +406,21 @@ export function paragraphToRuns(
               : ft === 'TIME'
                 ? 'TIME'
                 : 'OTHER';
+      // Field nodes carry the same character marks as text runs (the result
+      // run's w:rPr). Without extracting them the painted page number would
+      // fall back to the painter's hardcoded defaults instead of the footer
+      // run's font/size/color — Word renders the field result with the run's
+      // own formatting.
+      const formatting = extractRunFormatting(child.marks, theme);
+      if (inTocParagraph) stripTocHyperlinkStyle(formatting);
       runs.push({
         kind: 'field',
         fontFamily: pickFontFamilyForText(paraDefaults.fontFamilySlots) ?? undefined,
         fontSize: paraDefaults.fontSize,
         fieldType: mappedType,
         fallback: (child.attrs.displayText as string) || '',
+        ...paraDefaults,
+        ...formatting,
         pmStart: childPos,
         pmEnd: childPos + child.nodeSize,
       });

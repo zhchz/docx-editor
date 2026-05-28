@@ -181,6 +181,12 @@ export interface ListRendering {
   /** Marker font size from numbering level rPr, in points */
   markerFontSize?: number;
   /**
+   * Suffix character placed after the marker before body text (§17.9.25).
+   * Default is `tab`; `space` inserts a single space; `nothing` no gap.
+   * Drives marker-slot sizing in `getListMarkerInlineWidth`.
+   */
+  markerSuffix?: LevelSuffix;
+  /**
    * NumberFormat for each level from 0..ilvl (inclusive).
    * Used to resolve multi-level templates like "%1.%2." where each %N
    * may need a different format (e.g., upperRoman parent + decimal child).

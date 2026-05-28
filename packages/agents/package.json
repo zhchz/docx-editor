@@ -1,6 +1,6 @@
 {
   "name": "@eigenpal/docx-editor-agents",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Agent SDK and chat UI for the DOCX editor — framework-agnostic bridge, MCP server, AI SDK adapters, plus React UI (and Vue UI in 1.x)",
   "sideEffects": [
     "*.css"
@@ -105,9 +105,9 @@
   },
   "devDependencies": {
     "@microsoft/api-extractor": "^7.50.0",
-    "@vitejs/plugin-vue": "^5.2.4",
+    "@vitejs/plugin-vue": "^6.0.4",
     "ai": "^6.0.169",
-    "vite": "^7.0.0",
+    "vite": "^8.0.10",
     "vite-plugin-dts": "^5.0.0",
     "vue": "^3.4.0",
     "vue-tsc": "^2.0.0"

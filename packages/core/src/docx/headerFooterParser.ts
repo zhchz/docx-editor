@@ -16,12 +16,16 @@
  *
  * Content structure:
  * - w:hdr or w:ftr root element
- * - Contains w:p (paragraphs) and w:tbl (tables)
- * - Can contain images, shapes, page numbers, etc.
+ * - Contains w:p (paragraphs), w:tbl (tables) and w:sdt (structured document tags)
+ * - Can contain images, shapes, text boxes, page numbers, etc.
+ *
+ * Header/footer content shares the document body's block-level model
+ * (ECMA-376 CT_HdrFtr ≈ CT_Body), so it is parsed through the shared
+ * `parseBlockContent` rather than a bespoke walk.
  *
  * OOXML Reference:
  * - Root: w:hdr (header) or w:ftr (footer)
- * - Content: w:p, w:tbl
+ * - Content: w:p, w:tbl, w:sdt
  */
 
 import type {
@@ -29,8 +33,6 @@ import type {
   HeaderFooterType,
   HeaderReference,
   FooterReference,
-  Paragraph,
-  Table,
   Theme,
   RelationshipMap,
   MediaFile,
@@ -38,8 +40,7 @@ import type {
 import type { StyleMap } from './styleParser';
 import type { NumberingMap } from './numberingParser';
 import { parseXml, findChildren, getAttribute, type XmlElement } from './xmlParser';
-import { parseParagraph } from './paragraphParser';
-import { parseTable } from './tableParser';
+import { parseBlockContent } from './blockContentParser';
 
 // ============================================================================
 // HEADER/FOOTER MAP INTERFACE
@@ -151,78 +152,8 @@ export function parseFooterReferences(sectPr: XmlElement): FooterReference[] {
 }
 
 // ============================================================================
-// HEADER/FOOTER CONTENT PARSING
+// HEADER/FOOTER FILE PARSING
 // ============================================================================
-
-/**
- * Parse header/footer content (paragraphs and tables)
- *
- * @param root - Root element (w:hdr or w:ftr)
- * @param styles - Style map for applying styles
- * @param theme - Theme for color resolution
- * @param numbering - Numbering definitions for lists
- * @param rels - Relationships for resolving hyperlinks/images
- * @param media - Media files for images
- * @returns Array of content elements (Paragraph | Table)
- */
-function parseHeaderFooterContent(
-  root: XmlElement,
-  styles: StyleMap | null,
-  theme: Theme | null,
-  numbering: NumberingMap | null,
-  rels: RelationshipMap | null,
-  media: Map<string, MediaFile> | null
-): (Paragraph | Table)[] {
-  const content: (Paragraph | Table)[] = [];
-
-  // Get all child elements
-  const elements = root.elements ?? [];
-
-  // Headers and footers reflow per page, so the body-flow concept of a
-  // rendered-page-break marker has no meaning. The flag propagates through
-  // parseTable → parseTableCell → parseParagraph so even nested cell
-  // paragraphs skip the detection.
-  const opts = { inHeaderFooter: true };
-
-  for (const el of elements) {
-    if (el.type !== 'element') continue;
-
-    const name = el.name ?? '';
-
-    // Parse paragraphs
-    if (name === 'w:p' || name.endsWith(':p')) {
-      content.push(parseParagraph(el, styles, theme, numbering, rels, media, opts));
-    }
-    // Parse tables
-    else if (name === 'w:tbl' || name.endsWith(':tbl')) {
-      const table = parseTable(el, styles, theme, numbering, rels, media, opts);
-      content.push(table);
-    }
-    // SDT (structured document tags) can contain paragraphs/tables
-    else if (name === 'w:sdt' || name.endsWith(':sdt')) {
-      // Find sdtContent
-      const sdtContentEl = (el.elements ?? []).find(
-        (child: XmlElement) =>
-          child.type === 'element' &&
-          (child.name === 'w:sdtContent' || child.name?.endsWith(':sdtContent'))
-      );
-      if (sdtContentEl) {
-        // Recursively parse content inside SDT
-        const sdtContent = parseHeaderFooterContent(
-          sdtContentEl,
-          styles,
-          theme,
-          numbering,
-          rels,
-          media
-        );
-        content.push(...sdtContent);
-      }
-    }
-  }
-
-  return content;
-}
 
 /**
  * Parse a header XML file (word/header*.xml)
@@ -269,8 +200,11 @@ export function parseHeader(
     return result;
   }
 
-  // Parse content
-  result.content = parseHeaderFooterContent(rootElement, styles, theme, numbering, rels, media);
+  // Parse content through the shared block-content parser. `inHeaderFooter`
+  // skips rendered-page-break detection — headers/footers reflow per page.
+  result.content = parseBlockContent(rootElement, styles, theme, numbering, rels, media, {
+    inHeaderFooter: true,
+  });
 
   return result;
 }
@@ -320,8 +254,11 @@ export function parseFooter(
     return result;
   }
 
-  // Parse content
-  result.content = parseHeaderFooterContent(rootElement, styles, theme, numbering, rels, media);
+  // Parse content through the shared block-content parser. `inHeaderFooter`
+  // skips rendered-page-break detection — headers/footers reflow per page.
+  result.content = parseBlockContent(rootElement, styles, theme, numbering, rels, media, {
+    inHeaderFooter: true,
+  });
 
   return result;
 }

@@ -153,6 +153,7 @@ export function parseParagraph(
             undefined,
           // w:sz is in half-points; convert to points for downstream use
           markerFontSize: level.rPr?.fontSize ? level.rPr.fontSize / 2 : undefined,
+          markerSuffix: level.suffix,
           levelNumFmts,
           abstractNumId: instance?.abstractNumId,
           startOverride: overrideForLevel?.startOverride,
@@ -170,10 +171,22 @@ export function parseParagraph(
             directInd != null &&
             (getAttribute(directInd, 'w', 'left') !== null ||
               getAttribute(directInd, 'w', 'start') !== null);
+          // Per ECMA-376 §17.3.1.12 (CT_Ind), `w:firstLine` and `w:hanging`
+          // are ST_TwipsMeasure values; a value of `0` is semantically
+          // identical to omitting the attribute. Treat both `firstLine="0"`
+          // and `hanging="0"` as no-op so the numbering level's indent
+          // still applies. A non-numeric value parses to NaN and falls
+          // through as an override, preserving prior behavior on
+          // malformed input.
+          const hasNonZeroDirectAttr = (name: 'firstLine' | 'hanging'): boolean => {
+            const raw = directInd ? getAttribute(directInd, 'w', name) : null;
+            if (raw === null) return false;
+            const value = parseInt(raw, 10);
+            return Number.isNaN(value) || value !== 0;
+          };
           const hasDirectFirstLineOrHanging =
             directInd != null &&
-            (getAttribute(directInd, 'w', 'firstLine') !== null ||
-              getAttribute(directInd, 'w', 'hanging') !== null);
+            (hasNonZeroDirectAttr('firstLine') || hasNonZeroDirectAttr('hanging'));
 
           if (!hasDirectLeft && level.pPr.indentLeft !== undefined) {
             paragraph.formatting.indentLeft = level.pPr.indentLeft;

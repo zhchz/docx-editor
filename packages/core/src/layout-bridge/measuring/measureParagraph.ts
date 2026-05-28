@@ -19,11 +19,14 @@ import type {
   ParagraphSpacing,
 } from '../../layout-engine/types';
 import {
+  findClearLineY,
   getFloatingAvailableWidth,
   getFloatingMargins,
+  MIN_WRAP_SEGMENT_WIDTH,
   type FloatingImageZone,
   type FloatingLineSegmentZone,
 } from './floatingZones';
+
 import { wrapsAroundText } from '../../docx/wrapTypes';
 
 import {
@@ -31,12 +34,17 @@ import {
   measureRun,
   getFontMetrics,
   ptToPx,
-  twipsToPx,
   type FontStyle,
   type FontMetrics,
 } from './measureContainer';
 
 import { DEFAULT_SINGLE_LINE_RATIO } from '../../utils/fontResolver';
+import {
+  calculateTabWidth,
+  pixelsToTwips,
+  type TabContext,
+} from '../../prosemirror/utils/tabCalculator';
+import { getListMarkerInlineWidth } from './listMarkerWidth';
 
 // Default values - match OOXML spec defaults
 const DEFAULT_FONT_SIZE = 11; // 11pt (Word 2007+ default)
@@ -49,26 +57,6 @@ const DEFAULT_LINE_HEIGHT_MULTIPLIER = 1.0; // OOXML spec default: single spacin
 // Floating-point tolerance for line breaking (0.5px)
 // Prevents premature line breaks due to measurement rounding
 const WIDTH_TOLERANCE = 0.5;
-
-/**
- * Compute the width a tab character should advance to reach the next tab stop.
- */
-function computeTabWidth(
-  currentPos: number,
-  tabStops: { pos: number; val: string }[] | undefined
-): number {
-  if (tabStops && tabStops.length > 0) {
-    for (const stop of tabStops) {
-      const stopPx = twipsToPx(stop.pos);
-      if (stopPx > currentPos + 0.5) {
-        return Math.max(1, stopPx - currentPos);
-      }
-    }
-  }
-  // No matching stop — advance to next default interval
-  const remainder = currentPos % DEFAULT_TAB_WIDTH;
-  return Math.max(1, remainder < 0.5 ? DEFAULT_TAB_WIDTH : DEFAULT_TAB_WIDTH - remainder);
-}
 
 /**
  * Find the longest prefix of `text` that fits within `maxWidth` pixels.
@@ -322,11 +310,6 @@ function findWordBreaks(text: string): number[] {
 }
 
 /**
- * Default tab width in pixels (0.5 inch at 96 DPI)
- */
-const DEFAULT_TAB_WIDTH = 48;
-
-/**
  * When a float's wrap margins consume the entire content width (or more),
  * there is no horizontal strip beside it for body text. Word renders the
  * following lines at full content width instead of squeezing them into a
@@ -382,17 +365,44 @@ export function measureParagraph(
   // Calculate base available widths (before floating image adjustment)
   const bodyContentWidth = Math.max(1, maxWidth - indentLeft - indentRight);
   // First line offset: positive = first-line indent (less space), negative = hanging (more space)
-  // Subtracting gives correct width in both cases
-  const baseFirstLineWidth = Math.max(1, bodyContentWidth - firstLineOffset);
+  // Subtracting gives correct width in both cases.
+  // Inline list markers in the firstLine path eat into the body width too —
+  // subtract the marker's footprint so long markers don't push the last run
+  // past the right edge. The hanging path already widens via firstLineOffset
+  // (= firstLine − hanging) so it must not be subtracted again.
+  const markerInlineWidth = (indent?.hanging ?? 0) === 0 ? getListMarkerInlineWidth(block) : 0;
+  const baseFirstLineWidth = Math.max(1, bodyContentWidth - firstLineOffset - markerInlineWidth);
 
   // Track cumulative height for floating zone calculations
   let cumulativeHeight = 0;
+  // Lead-skip to attach to the next line that finalizes — set when we hop
+  // past a float that leaves no usable horizontal width at the current Y.
+  let pendingFloatSkip = 0;
 
   // Calculate first line width with floating zone adjustment
-  // Estimate first line height for floating margin calculation
   const estimatedFirstLineHeight = ptToPx(DEFAULT_FONT_SIZE) * DEFAULT_LINE_HEIGHT_MULTIPLIER;
+
+  /**
+   * If floats leave no usable horizontal room at `cumulativeHeight`, advance
+   * past them. Returns the px to skip; both `cumulativeHeight` and
+   * `pendingFloatSkip` are bumped by that amount.
+   */
+  const skipObstructingFloats = (lineHeight: number, lineMaxWidth: number): void => {
+    if (!floatingZones || floatingZones.length === 0) return;
+    const absoluteY = paragraphYOffset + cumulativeHeight;
+    const skip =
+      findClearLineY(absoluteY, lineHeight, floatingZones, lineMaxWidth, MIN_WRAP_SEGMENT_WIDTH) -
+      absoluteY;
+    if (skip > 0) {
+      cumulativeHeight += skip;
+      pendingFloatSkip += skip;
+    }
+  };
+
+  skipObstructingFloats(estimatedFirstLineHeight, baseFirstLineWidth);
+
   const firstLineFloatingMargins = getFloatingMargins(
-    0,
+    cumulativeHeight,
     estimatedFirstLineHeight,
     floatingZones,
     paragraphYOffset
@@ -511,23 +521,36 @@ export function measureParagraph(
     );
 
     // If an inline image is taller than the text-based line height, the line
-    // grows to fit the image PLUS the parent paragraph's natural line leading.
-    // Word treats an inline image as a tall glyph sitting on the text baseline:
-    // the image extends above the baseline (full ascent), and the line still
-    // reserves the parent font's normal descent + leading below. Without the
-    // extra leading the image renders flush with its containing cell borders
-    // (no visual breathing room when the image is alone in a table cell).
+    // grows to fit the image. Word treats an inline image as a tall glyph
+    // sitting on the text baseline: the image extends above the baseline
+    // (full ascent), and the line reserves the parent font's descent below.
     const finalTypography = { ...typography };
     if (currentLine.maxImageHeightPx > finalTypography.lineHeight) {
-      // Image-only line: line grows to image height plus the parent font's
-      // descent on BOTH sides so the row has visible breathing room above
-      // and below the image (Word's render gives a few px of cell padding
-      // even with tcMar=0). Sibling text cells share the row height, so
-      // their descenders also stay clear of overflow:hidden.
       const imageH = currentLine.maxImageHeightPx;
       const buffer = finalTypography.descent;
-      finalTypography.lineHeight = imageH + buffer * 2;
-      finalTypography.ascent = imageH + buffer;
+      // `fromRun === toRun` means a single-run line — here, the lone image
+      // (the enclosing `if` guarantees a tall image is present). This must
+      // stay in sync with the painter's image-only test in `renderLine`
+      // (`runsForLine.length === 1 && isImageRun(...)`); the two pick paired
+      // line-height / alignment strategies and disagreeing reintroduces the
+      // floating-label bug.
+      if (currentLine.fromRun === currentLine.toRun) {
+        // Image alone on the line: grow to the image height plus the parent
+        // font's descent on BOTH sides so the row has visible breathing room
+        // above and below the image (Word's render gives a few px of cell
+        // padding even with tcMar=0). Sibling text cells share the row
+        // height, so their descenders also stay clear of overflow:hidden.
+        finalTypography.lineHeight = imageH + buffer * 2;
+        finalTypography.ascent = imageH + buffer;
+      } else {
+        // Image flowing with text/tabs (e.g. a logo + label header line):
+        // Word seats the image on the text baseline — the full image height
+        // sits above the baseline and only the text descent is reserved
+        // below, no extra leading above the image. The painter baseline-aligns
+        // the row so the image bottom lands on the text baseline.
+        finalTypography.lineHeight = imageH + buffer;
+        finalTypography.ascent = imageH;
+      }
       // descent stays as text metrics
     }
 
@@ -549,6 +572,10 @@ export function measureParagraph(
     }
     if (currentLine.segmentZones?.length) {
       line.segments = createLineSegments(line, currentLine.segmentZones);
+    }
+    if (pendingFloatSkip > 0) {
+      line.floatSkipBefore = pendingFloatSkip;
+      pendingFloatSkip = 0;
     }
 
     lines.push(line);
@@ -620,9 +647,10 @@ export function measureParagraph(
   const startNewLine = (runIndex: number, charIndex: number): void => {
     finalizeLine();
 
-    // Calculate available width for new line based on floating zones
-    // Estimate the new line's height for overlap calculation
+    // Available width depends on the line's Y vs. floating zones.
     const estimatedLineHeight = ptToPx(DEFAULT_FONT_SIZE) * DEFAULT_LINE_HEIGHT_MULTIPLIER;
+    skipObstructingFloats(estimatedLineHeight, bodyContentWidth);
+
     const floatingMargins = getFloatingMargins(
       cumulativeHeight,
       estimatedLineHeight,
@@ -680,10 +708,22 @@ export function measureParagraph(
       const style = runToFontStyle(run);
       updateMaxFont(style);
 
-      // Compute tab width: advance to the next tab stop position.
-      const tabStops = attrs?.tabs;
-      const currentPos = currentLine.width + (currentLine.leftOffset ?? 0);
-      let tabWidth = computeTabWidth(currentPos, tabStops);
+      const followingWidth = measureInlineWidthAfterTab(runs, runIndex);
+
+      // Tab width comes from the shared tab-stop model (`calculateTabWidth` —
+      // computeTabStops + alignment) that the painter also uses, so the
+      // measurer and the painter agree on line widths. `calculateTabWidth`
+      // works in content-area coordinates (tab stops are measured from the
+      // content-area left edge), so the indent and any first-line offset are
+      // added in; the line wrap math further down stays indent-relative.
+      const lineX = currentLine.width + (currentLine.leftOffset ?? 0);
+      const isFirstLine = lines.length === 0;
+      const contentX = indentLeft + (isFirstLine ? firstLineOffset : 0) + lineX;
+      const tabContext: TabContext = {
+        explicitStops: attrs?.tabs,
+        leftIndent: pixelsToTwips(indentLeft),
+      };
+      let tabWidth = calculateTabWidth(contentX, tabContext, { followingWidth }).width;
 
       // When the tab targets a position past the line edge — Word's TOC
       // styles routinely author right tab stops a hair past the page margin
@@ -691,9 +731,8 @@ export function measureParagraph(
       // follow (the page number after a TOC leader). Without this, the wrap
       // check below trips and the next line gets the tab + page number
       // alone, with the dots filling the whole new line.
-      if (currentPos + tabWidth > currentLine.availableWidth + WIDTH_TOLERANCE) {
-        const followingWidth = measureInlineWidthAfterTab(runs, runIndex);
-        const clamped = currentLine.availableWidth - currentPos - followingWidth;
+      if (lineX + tabWidth > currentLine.availableWidth + WIDTH_TOLERANCE) {
+        const clamped = currentLine.availableWidth - lineX - followingWidth;
         if (clamped > 1) {
           tabWidth = clamped;
         }
@@ -750,9 +789,14 @@ export function measureParagraph(
       const imageWidth = run.width;
       const imageHeight = run.height;
 
-      // Track image height separately (already in pixels, not points)
-      if (imageHeight > currentLine.maxImageHeightPx) {
-        currentLine.maxImageHeightPx = imageHeight;
+      // The image's vertical footprint in the line includes its wrap
+      // distances (wp:inline distT/distB). These default to 0 for inline
+      // images (unlike the block path's synthetic 6px). The painter applies
+      // them as top/bottom margins on the <img>, so the run's flex baseline
+      // (the margin-box edge) stays consistent with this reserved height.
+      const imageFootprintPx = imageHeight + (run.distTop ?? 0) + (run.distBottom ?? 0);
+      if (imageFootprintPx > currentLine.maxImageHeightPx) {
+        currentLine.maxImageHeightPx = imageFootprintPx;
       }
 
       if (currentLine.width + imageWidth > currentLine.availableWidth + WIDTH_TOLERANCE) {
@@ -895,18 +939,11 @@ export function measureParagraph(
   // Finalize the last line
   finalizeLine();
 
-  // Calculate total height
-  let totalHeight = lines.reduce((sum, line) => sum + line.lineHeight, 0);
-
-  // The renderer wraps a list marker in its own line element when there is no
-  // hanging indent reserved for it (matching Word's <w:suff w:val="tab"/>
-  // wrap, see renderParagraph.ts). Account for that extra row here so the
-  // paragraph reports the correct height to its container.
-  const hasOwnLineMarker =
-    !!attrs?.listMarker && !attrs?.listMarkerHidden && (indent?.hanging ?? 0) === 0;
-  if (hasOwnLineMarker && lines.length > 0) {
-    totalHeight += lines[0].lineHeight;
-  }
+  // Calculate total height — include floatSkipBefore from lines bumped past floats.
+  const totalHeight = lines.reduce(
+    (sum, line) => sum + line.lineHeight + (line.floatSkipBefore ?? 0),
+    0
+  );
 
   // Add spacing before/after
   let totalWithSpacing = totalHeight;
