@@ -70,7 +70,10 @@ function getShapeText(shape: Shape): string {
  */
 export function getHyperlinkText(hyperlink: Hyperlink): string {
   const texts: string[] = [];
-  for (const child of hyperlink.children) {
+  const children = Array.isArray((hyperlink as { children?: unknown }).children)
+    ? ((hyperlink as { children: unknown[] }).children as Array<{ type?: string } & Run>)
+    : [];
+  for (const child of children) {
     if (child.type === 'run') {
       texts.push(getRunText(child));
     }
