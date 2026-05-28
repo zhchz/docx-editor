@@ -318,20 +318,8 @@ export function paragraphToRuns(
   // content controls keep contributing runs at the right pmStart/pmEnd.
   function pushRunsForChild(child: PMNode, childPos: number): void {
     if (child.isText && child.text) {
-<<<<<<< HEAD
       const formatting = extractRunFormatting(child.marks, theme, child.text);
-      if (inTocParagraph && formatting.hyperlink) {
-        // Strip the resolved color/underline so the painter's fallback
-        // doesn't fire; the PM doc keeps the original marks so copy/paste
-        // out of a TOC carries the Hyperlink styling like Word does.
-        formatting.hyperlink = { ...formatting.hyperlink, noDefaultStyle: true };
-        delete formatting.color;
-        delete formatting.underline;
-      }
-=======
-      const formatting = extractRunFormatting(child.marks, theme);
       if (inTocParagraph) stripTocHyperlinkStyle(formatting);
->>>>>>> c1a98f9a1f93d0b7da8673ce26be11b54b8f1b0d
       const run: TextRun = {
         kind: 'text',
         text: child.text,

@@ -687,7 +687,7 @@ const PagedEditorComponent = forwardRef<PagedEditorRef, PagedEditorProps>(
         {/* Viewport for visible pages */}
         <div
           ref={viewportLayoutRef}
-          data-winwin-base-height={totalHeight}
+          data-adapter-base-height={totalHeight}
           style={{
             ...viewportStyles,
             height: totalHeight * zoom,

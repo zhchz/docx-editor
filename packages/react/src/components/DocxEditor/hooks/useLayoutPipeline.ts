@@ -436,7 +436,7 @@ export function useLayoutPipeline(opts: UseLayoutPipelineOptions): UseLayoutPipe
           const vp = viewportLayoutRef.current;
           if (vp) {
             const mh = viewportMinHeightPx(newLayout, pageGap);
-            vp.dataset.winwinBaseHeight = String(mh);
+            vp.dataset.adapterBaseHeight = String(mh);
             vp.style.height = `${mh * zoom}px`;
             vp.style.minHeight = `${mh * zoom}px`;
             vp.style.marginBottom = '';
